@@ -519,135 +519,125 @@ function highlight(text, q) {
 }
 
 function makeSearchSelect(containerId, items, onSelect) {
-  var c   = document.getElementById(containerId);
-  var inp = c.querySelector(".ss-input");
-  var sel = "";
-  var highlightedIdx = -1;
-  var isSelecting = false;
-  var isOpen = false;
-  var currentFiltered = [];
+  var c      = document.getElementById(containerId);
+  var inp    = c.querySelector(".ss-input");
+  var sel    = "";
+  var hlIdx  = -1;
+  var active = false; // true = dropdown is open and usable
 
-  // Dropdown appended to body - breaks out of all overflow
   var dd = document.createElement("div");
-  dd.style.cssText = "display:none;position:fixed;z-index:99999;background:#fff;border:1.5px solid #e8890a;border-radius:8px;box-shadow:0 4px 24px rgba(26,35,64,.14);max-height:210px;overflow-y:auto;";
+  dd.style.cssText = "display:none;position:fixed;z-index:99999;background:#fff;border:1.5px solid #e8890a;border-radius:8px;box-shadow:0 4px 24px rgba(26,35,64,.14);max-height:220px;overflow-y:auto;";
   document.body.appendChild(dd);
 
-  function positionDD() {
-    var rect = inp.getBoundingClientRect();
-    dd.style.top   = (rect.bottom + 4) + "px";
-    dd.style.left  = rect.left + "px";
-    dd.style.width = rect.width + "px";
+  function pos() {
+    var r = inp.getBoundingClientRect();
+    dd.style.top   = (r.bottom + 4) + "px";
+    dd.style.left  = r.left + "px";
+    dd.style.width = r.width + "px";
   }
 
-  function getOpts() { return dd.querySelectorAll(".ss-option"); }
+  function getList() {
+    return Array.prototype.slice.call(dd.querySelectorAll(".ss-option"));
+  }
 
-  function setHL(i) {
-    var opts = getOpts();
-    opts.forEach(function(o) { o.classList.remove("highlighted"); });
-    highlightedIdx = -1;
-    if (i >= 0 && i < opts.length) {
-      highlightedIdx = i;
-      opts[i].classList.add("highlighted");
-      opts[i].scrollIntoView({ block: "nearest" });
+  function hl(i) {
+    var list = getList();
+    list.forEach(function(o) { o.classList.remove("highlighted"); });
+    if (i >= 0 && i < list.length) {
+      hlIdx = i;
+      list[i].classList.add("highlighted");
+      list[i].scrollIntoView({ block: "nearest" });
+    } else {
+      hlIdx = -1;
     }
   }
 
   function render(q) {
-    highlightedIdx = -1;
+    hlIdx = -1;
     var q2 = (q || "").trim().toLowerCase();
-    currentFiltered = items.filter(function(it) {
-      return !q2 || it.label.toLowerCase().indexOf(q2) !== -1;
+    var filtered = items.filter(function(it) {
+      return !q2 || it.label.toLowerCase().indexOf(q2) > -1;
     });
-    if (!currentFiltered.length) {
+    if (!filtered.length) {
       dd.innerHTML = '<div class="ss-no-results">No results</div>';
       return;
     }
-    dd.innerHTML = currentFiltered.map(function(it, i) {
+    dd.innerHTML = filtered.map(function(it) {
       return '<div class="ss-option' + (it.value === sel ? " selected" : "") +
-        '" data-value="' + it.value + '" data-idx="' + i + '">' +
-        highlight(it.label, q) + '</div>';
+             '" data-v="' + it.value + '">' + highlight(it.label, q) + '</div>';
     }).join("");
 
-    // Both mousedown (desktop) and touchend (mobile)
-    dd.querySelectorAll(".ss-option").forEach(function(opt) {
-      function pick(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        isSelecting = true;
-        doSelect(opt.dataset.value);
-      }
-      opt.addEventListener("mousedown", pick);
-      opt.addEventListener("touchend", pick);
+    getList().forEach(function(o) {
+      o.addEventListener("mousedown",  function(e) { e.preventDefault(); pick(o.dataset.v); });
+      o.addEventListener("touchstart", function(e) { e.preventDefault(); pick(o.dataset.v); });
     });
   }
 
-  function doSelect(val) {
-    isSelecting = true;
+  function pick(val) {
+    // Temporarily disable blur handling
+    active = false;
     sel = val;
     var found = items.find(function(i) { return i.value === val; });
     inp.value = found ? found.label : "";
-    close();
+    dd.style.display = "none";
+    hlIdx = -1;
     onSelect(val);
-    setTimeout(function() { isSelecting = false; }, 300);
+    // Re-focus input after selection (moves to next field via Tab logic)
+    setTimeout(function() { inp.blur(); }, 50);
   }
 
   function open() {
     render(inp.value);
-    positionDD();
+    pos();
     dd.style.display = "block";
-    isOpen = true;
+    active = true;
   }
 
   function close() {
     dd.style.display = "none";
-    isOpen = false;
-    highlightedIdx = -1;
+    active = false;
+    hlIdx = -1;
   }
 
   inp.addEventListener("focus", function() { open(); });
 
   inp.addEventListener("input", function() {
     render(inp.value);
-    positionDD();
+    pos();
     dd.style.display = "block";
-    isOpen = true;
+    active = true;
   });
 
-  // Keyboard navigation (desktop)
   inp.addEventListener("keydown", function(e) {
-    var key = e.key;
-    if (["ArrowDown","ArrowUp","Enter","Escape"].indexOf(key) !== -1) {
-      e.preventDefault();
-      e.stopPropagation();
-    } else {
-      return; // let other keys type normally
+    var k = e.keyCode || e.which || 0;
+    var s = e.key || "";
+    var isDn  = (k === 40 || s === "ArrowDown");
+    var isUp  = (k === 38 || s === "ArrowUp");
+    var isEnt = (k === 13 || s === "Enter");
+    var isEsc = (k === 27 || s === "Escape");
+
+    if (!isDn && !isUp && !isEnt && !isEsc) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+
+    if (dd.style.display === "none") { open(); return; }
+    var list = getList();
+    if (!list.length) return;
+
+    if (isDn)  { hl(hlIdx < list.length - 1 ? hlIdx + 1 : 0); }
+    else if (isUp)  { hl(hlIdx > 0 ? hlIdx - 1 : list.length - 1); }
+    else if (isEnt) {
+      var target = hlIdx >= 0 ? list[hlIdx] : list[0];
+      if (target) pick(target.dataset.v);
     }
-
-    if (key === "Escape") { close(); inp.blur(); return; }
-    if (!isOpen) { open(); return; }
-
-    var opts = getOpts();
-    if (!opts.length) return;
-
-    if (key === "ArrowDown") {
-      var next = highlightedIdx < opts.length - 1 ? highlightedIdx + 1 : 0;
-      setHL(next);
-    } else if (key === "ArrowUp") {
-      var prev = highlightedIdx > 0 ? highlightedIdx - 1 : opts.length - 1;
-      setHL(prev);
-    } else if (key === "Enter") {
-      var target = (highlightedIdx >= 0 && opts[highlightedIdx]) ? opts[highlightedIdx] : opts[0];
-      if (target) {
-        isSelecting = true;
-        doSelect(target.dataset.value);
-      }
-    }
+    else if (isEsc) { close(); inp.blur(); }
   });
 
   inp.addEventListener("blur", function() {
-    if (isSelecting) return;
+    // Only restore label if we didn't just pick something
+    if (!active) return;
     setTimeout(function() {
-      if (isSelecting) return;
+      if (!active) return;
       close();
       if (sel) {
         var f = items.find(function(i) { return i.value === sel; });
@@ -655,16 +645,16 @@ function makeSearchSelect(containerId, items, onSelect) {
       } else {
         inp.value = "";
       }
-    }, 250);
+    }, 300);
   });
 
-  window.addEventListener("scroll", function() { if (isOpen) positionDD(); }, true);
-  window.addEventListener("resize", function() { if (isOpen) positionDD(); });
+  window.addEventListener("scroll", function() { if (dd.style.display !== "none") pos(); }, true);
+  window.addEventListener("resize", function() { if (dd.style.display !== "none") pos(); });
 
   return {
-    getValue: function() { return sel; },
-    setValue: function(v) { doSelect(v); },
-    reset: function() { sel = ""; inp.value = ""; close(); }
+    getValue: function()  { return sel; },
+    setValue: function(v) { pick(v); },
+    reset:    function()  { sel = ""; inp.value = ""; close(); }
   };
 }
 

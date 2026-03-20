@@ -241,9 +241,10 @@ input[readonly] {
 .ss-option { padding: 9px 12px; font-size: 13px; cursor: pointer; border-bottom: 1px solid var(--border); transition: background .1s; }
 .ss-option:last-child { border-bottom: none; }
 .ss-option:hover { background: var(--accent-light); }
+.ss-option.highlighted { background: var(--accent-light); outline: 2px solid var(--accent); outline-offset: -2px; }
 .ss-option.selected { background: var(--accent); color: #fff; }
-.ss-option em { font-style: normal; font-weight: 700; color: var(--accent); }
 .ss-option.selected em { color: #fff; }
+.ss-option em { font-style: normal; font-weight: 700; color: var(--accent); }
 .ss-option {
   padding: 9px 12px;
   font-size: 13px;
@@ -806,8 +807,9 @@ function makeSearchSelect(containerId, items, onSelect) {
   var c   = document.getElementById(containerId);
   var inp = c.querySelector(".ss-input");
   var sel = "";
+  var highlightedIdx = -1;
 
-  // Create dropdown and append to BODY to escape all overflow constraints
+  // Create dropdown and append to BODY
   var dd = document.createElement("div");
   dd.className = "ss-dropdown";
   dd.style.display = "none";
@@ -828,7 +830,25 @@ function makeSearchSelect(containerId, items, onSelect) {
     dd.style.width = rect.width + "px";
   }
 
+  function getOptions() {
+    return dd.querySelectorAll(".ss-option");
+  }
+
+  function setHighlight(idx) {
+    var opts = getOptions();
+    opts.forEach(function(o) { o.classList.remove("highlighted"); });
+    if (idx >= 0 && idx < opts.length) {
+      highlightedIdx = idx;
+      opts[idx].classList.add("highlighted");
+      // Scroll into view
+      opts[idx].scrollIntoView({ block: "nearest" });
+    } else {
+      highlightedIdx = -1;
+    }
+  }
+
   function render(q) {
+    highlightedIdx = -1;
     var q2 = (q || "").trim().toLowerCase();
     var filtered = items.filter(function(it) {
       return !q2 || it.label.toLowerCase().indexOf(q2) !== -1;
@@ -858,7 +878,6 @@ function makeSearchSelect(containerId, items, onSelect) {
   }
 
   function open() {
-    // Close all other dropdowns first
     document.querySelectorAll(".ss-dropdown-open").forEach(function(el) {
       el.style.display = "none";
       el.classList.remove("ss-dropdown-open");
@@ -868,16 +887,49 @@ function makeSearchSelect(containerId, items, onSelect) {
     dd.style.display = "block";
     dd.classList.add("ss-dropdown-open");
     c.classList.add("open");
+    highlightedIdx = -1;
   }
 
   function close() {
     dd.style.display = "none";
     dd.classList.remove("ss-dropdown-open");
     c.classList.remove("open");
+    highlightedIdx = -1;
   }
 
   inp.addEventListener("focus", function() { open(); });
-  inp.addEventListener("input", function() { render(inp.value); positionDD(); dd.style.display = "block"; c.classList.add("open"); });
+  inp.addEventListener("input", function() {
+    render(inp.value);
+    positionDD();
+    dd.style.display = "block";
+    c.classList.add("open");
+  });
+
+  inp.addEventListener("keydown", function(e) {
+    var opts = getOptions();
+    if (!opts.length) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      var next = highlightedIdx < opts.length - 1 ? highlightedIdx + 1 : 0;
+      setHighlight(next);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      var prev = highlightedIdx > 0 ? highlightedIdx - 1 : opts.length - 1;
+      setHighlight(prev);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (highlightedIdx >= 0 && opts[highlightedIdx]) {
+        doSelect(opts[highlightedIdx].dataset.value);
+      } else if (opts.length === 1) {
+        doSelect(opts[0].dataset.value);
+      }
+    } else if (e.key === "Escape") {
+      close();
+      inp.blur();
+    }
+  });
+
   inp.addEventListener("blur", function() {
     setTimeout(function() {
       close();
@@ -890,7 +942,6 @@ function makeSearchSelect(containerId, items, onSelect) {
     }, 200);
   });
 
-  // Reposition on scroll and resize
   window.addEventListener("scroll", function() { if (dd.style.display !== "none") positionDD(); }, true);
   window.addEventListener("resize", function() { if (dd.style.display !== "none") positionDD(); });
 

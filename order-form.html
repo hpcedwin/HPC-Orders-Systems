@@ -523,7 +523,8 @@ function makeSearchSelect(containerId, items, onSelect) {
   var inp    = c.querySelector(".ss-input");
   var sel    = "";
   var hlIdx  = -1;
-  var active = false; // true = dropdown is open and usable
+  var filtered = [];
+  var justPicked = false;
 
   var dd = document.createElement("div");
   dd.style.cssText = "display:none;position:fixed;z-index:99999;background:#fff;border:1.5px solid #e8890a;border-radius:8px;box-shadow:0 4px 24px rgba(26,35,64,.14);max-height:220px;overflow-y:auto;";
@@ -536,12 +537,12 @@ function makeSearchSelect(containerId, items, onSelect) {
     dd.style.width = r.width + "px";
   }
 
-  function getList() {
+  function getOpts() {
     return Array.prototype.slice.call(dd.querySelectorAll(".ss-option"));
   }
 
   function hl(i) {
-    var list = getList();
+    var list = getOpts();
     list.forEach(function(o) { o.classList.remove("highlighted"); });
     if (i >= 0 && i < list.length) {
       hlIdx = i;
@@ -555,7 +556,7 @@ function makeSearchSelect(containerId, items, onSelect) {
   function render(q) {
     hlIdx = -1;
     var q2 = (q || "").trim().toLowerCase();
-    var filtered = items.filter(function(it) {
+    filtered = items.filter(function(it) {
       return !q2 || it.label.toLowerCase().indexOf(q2) > -1;
     });
     if (!filtered.length) {
@@ -566,47 +567,31 @@ function makeSearchSelect(containerId, items, onSelect) {
       return '<div class="ss-option' + (it.value === sel ? " selected" : "") +
              '" data-v="' + it.value + '">' + highlight(it.label, q) + '</div>';
     }).join("");
-
-    getList().forEach(function(o) {
+    getOpts().forEach(function(o) {
       o.addEventListener("mousedown",  function(e) { e.preventDefault(); pick(o.dataset.v); });
       o.addEventListener("touchstart", function(e) { e.preventDefault(); pick(o.dataset.v); });
     });
   }
 
   function pick(val) {
-    // Temporarily disable blur handling
-    active = false;
+    justPicked = true;
     sel = val;
     var found = items.find(function(i) { return i.value === val; });
     inp.value = found ? found.label : "";
     dd.style.display = "none";
     hlIdx = -1;
     onSelect(val);
-    // Re-focus input after selection (moves to next field via Tab logic)
-    setTimeout(function() { inp.blur(); }, 50);
+    setTimeout(function() { justPicked = false; }, 500);
   }
 
   function open() {
     render(inp.value);
     pos();
     dd.style.display = "block";
-    active = true;
-  }
-
-  function close() {
-    dd.style.display = "none";
-    active = false;
-    hlIdx = -1;
   }
 
   inp.addEventListener("focus", function() { open(); });
-
-  inp.addEventListener("input", function() {
-    render(inp.value);
-    pos();
-    dd.style.display = "block";
-    active = true;
-  });
+  inp.addEventListener("input", function() { render(inp.value); pos(); dd.style.display = "block"; });
 
   inp.addEventListener("keydown", function(e) {
     var k = e.keyCode || e.which || 0;
@@ -618,27 +603,26 @@ function makeSearchSelect(containerId, items, onSelect) {
 
     if (!isDn && !isUp && !isEnt && !isEsc) return;
     e.preventDefault();
-    e.stopImmediatePropagation();
 
     if (dd.style.display === "none") { open(); return; }
-    var list = getList();
+    var list = getOpts();
     if (!list.length) return;
 
-    if (isDn)  { hl(hlIdx < list.length - 1 ? hlIdx + 1 : 0); }
+    if (isDn)       { hl(hlIdx < list.length - 1 ? hlIdx + 1 : 0); }
     else if (isUp)  { hl(hlIdx > 0 ? hlIdx - 1 : list.length - 1); }
     else if (isEnt) {
       var target = hlIdx >= 0 ? list[hlIdx] : list[0];
       if (target) pick(target.dataset.v);
     }
-    else if (isEsc) { close(); inp.blur(); }
+    else if (isEsc) { dd.style.display = "none"; inp.blur(); }
   });
 
   inp.addEventListener("blur", function() {
-    // Only restore label if we didn't just pick something
-    if (!active) return;
+    if (justPicked) return;
     setTimeout(function() {
-      if (!active) return;
-      close();
+      if (justPicked) return;
+      dd.style.display = "none";
+      hlIdx = -1;
       if (sel) {
         var f = items.find(function(i) { return i.value === sel; });
         if (f) inp.value = f.label;
@@ -654,7 +638,7 @@ function makeSearchSelect(containerId, items, onSelect) {
   return {
     getValue: function()  { return sel; },
     setValue: function(v) { pick(v); },
-    reset:    function()  { sel = ""; inp.value = ""; close(); }
+    reset:    function()  { sel = ""; inp.value = ""; dd.style.display = "none"; }
   };
 }
 

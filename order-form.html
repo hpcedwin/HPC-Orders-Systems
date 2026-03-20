@@ -237,21 +237,13 @@ input[readonly] {
   color: var(--light);
   font-size: 10px;
 }
-.search-select .ss-dropdown {
-  display: none;
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  background: #fff;
-  border: 1.5px solid var(--accent);
-  border-radius: 8px;
-  box-shadow: var(--shadow-lg);
-  z-index: 9000;
-  max-height: 210px;
-  overflow-y: auto;
-}
-.search-select.open .ss-dropdown { display: block; }
+.ss-no-results { padding: 10px 12px; font-size: 13px; color: var(--muted); text-align: center; }
+.ss-option { padding: 9px 12px; font-size: 13px; cursor: pointer; border-bottom: 1px solid var(--border); transition: background .1s; }
+.ss-option:last-child { border-bottom: none; }
+.ss-option:hover { background: var(--accent-light); }
+.ss-option.selected { background: var(--accent); color: #fff; }
+.ss-option em { font-style: normal; font-weight: 700; color: var(--accent); }
+.ss-option.selected em { color: #fff; }
 .ss-option {
   padding: 9px 12px;
   font-size: 13px;
@@ -813,8 +805,28 @@ function highlight(text, q) {
 function makeSearchSelect(containerId, items, onSelect) {
   var c   = document.getElementById(containerId);
   var inp = c.querySelector(".ss-input");
-  var dd  = c.querySelector(".ss-dropdown");
   var sel = "";
+
+  // Create dropdown and append to BODY to escape all overflow constraints
+  var dd = document.createElement("div");
+  dd.className = "ss-dropdown";
+  dd.style.display = "none";
+  dd.style.position = "fixed";
+  dd.style.zIndex = "99999";
+  dd.style.background = "#fff";
+  dd.style.border = "1.5px solid var(--accent)";
+  dd.style.borderRadius = "8px";
+  dd.style.boxShadow = "0 4px 24px rgba(26,35,64,.14)";
+  dd.style.maxHeight = "210px";
+  dd.style.overflowY = "auto";
+  document.body.appendChild(dd);
+
+  function positionDD() {
+    var rect = inp.getBoundingClientRect();
+    dd.style.top   = (rect.bottom + 4) + "px";
+    dd.style.left  = rect.left + "px";
+    dd.style.width = rect.width + "px";
+  }
 
   function render(q) {
     var q2 = (q || "").trim().toLowerCase();
@@ -845,11 +857,27 @@ function makeSearchSelect(containerId, items, onSelect) {
     onSelect(val);
   }
 
-  function open() { render(inp.value); c.classList.add("open"); }
-  function close() { c.classList.remove("open"); }
+  function open() {
+    // Close all other dropdowns first
+    document.querySelectorAll(".ss-dropdown-open").forEach(function(el) {
+      el.style.display = "none";
+      el.classList.remove("ss-dropdown-open");
+    });
+    render(inp.value);
+    positionDD();
+    dd.style.display = "block";
+    dd.classList.add("ss-dropdown-open");
+    c.classList.add("open");
+  }
 
-  inp.addEventListener("focus", function() { render(""); open(); });
-  inp.addEventListener("input", function() { render(inp.value); open(); });
+  function close() {
+    dd.style.display = "none";
+    dd.classList.remove("ss-dropdown-open");
+    c.classList.remove("open");
+  }
+
+  inp.addEventListener("focus", function() { open(); });
+  inp.addEventListener("input", function() { render(inp.value); positionDD(); dd.style.display = "block"; c.classList.add("open"); });
   inp.addEventListener("blur", function() {
     setTimeout(function() {
       close();
@@ -859,8 +887,12 @@ function makeSearchSelect(containerId, items, onSelect) {
       } else {
         inp.value = "";
       }
-    }, 150);
+    }, 200);
   });
+
+  // Reposition on scroll and resize
+  window.addEventListener("scroll", function() { if (dd.style.display !== "none") positionDD(); }, true);
+  window.addEventListener("resize", function() { if (dd.style.display !== "none") positionDD(); });
 
   return {
     getValue: function() { return sel; },

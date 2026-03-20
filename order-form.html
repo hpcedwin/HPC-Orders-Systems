@@ -247,7 +247,7 @@ input[readonly] {
   border: 1.5px solid var(--accent);
   border-radius: 8px;
   box-shadow: var(--shadow-lg);
-  z-index: 500;
+  z-index: 9000;
   max-height: 210px;
   overflow-y: auto;
 }
@@ -313,7 +313,7 @@ input[readonly] {
 .btn-danger:hover { background: #fef2f2; }
 
 /* Items Table */
-.items-wrap { overflow-x: auto; }
+.items-wrap { overflow-x: auto; overflow-y: visible; }
 .items-table {
   width: 100%;
   border-collapse: collapse;
@@ -332,7 +332,7 @@ input[readonly] {
 }
 .items-table tbody tr { border-bottom: 1px solid var(--border); }
 .items-table tbody tr:last-child { border-bottom: none; }
-.items-table td { padding: 7px 8px; vertical-align: middle; }
+.items-table td { padding: 7px 8px; vertical-align: middle; overflow: visible; }
 .col-code  { width: 190px; }
 .col-prod  { min-width: 100px; }
 .col-price { width: 115px; }
@@ -1134,7 +1134,7 @@ function showToast(msg, type) {
 }
 
 // Password protection
-var CORRECT_PASSWORD = "Hpc@5788";
+var CORRECT_PASSWORD = "hpc5788";
 function checkPassword() {
   var input = document.getElementById("lockInput").value;
   var err = document.getElementById("lockError");

@@ -412,7 +412,7 @@ function switchTab(name){
 var toastTimer;
 function showToast(msg,type){type=type||"success";var t=document.getElementById("toast");document.getElementById("toastMsg").textContent=msg;t.className="toast "+(type==="error"?"error":"")+" show";clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.className="toast";},3500);}
 
-var CORRECT_PASSWORD = "Hpc@5788";
+var CORRECT_PASSWORD = "hpc5788";
 function checkPassword() {
   var input = document.getElementById("lockInput").value;
   var err = document.getElementById("lockError");

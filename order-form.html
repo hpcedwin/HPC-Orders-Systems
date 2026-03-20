@@ -209,6 +209,57 @@ body.dark .btn-navy:hover { opacity: .85; }
   .summary-box .s-val { font-size: 18px; }
 }
 </style>
+<script>
+var CORRECT_PASSWORD = "hpc5788";
+
+function checkPassword() {
+  var lockInput = document.getElementById("lockInput");
+  var input = lockInput ? lockInput.value : "";
+  if (input === CORRECT_PASSWORD) {
+    document.getElementById("lockScreen").style.display = "none";
+    try { sessionStorage.setItem("hpc_unlocked", "1"); } catch(e) {}
+  } else {
+    document.getElementById("lockError").style.display = "block";
+    lockInput.value = "";
+    lockInput.focus();
+  }
+}
+
+// Run as soon as DOM is ready
+function initLock() {
+  // Auto-unlock if already authenticated
+  try {
+    if (sessionStorage.getItem("hpc_unlocked") === "1") {
+      var ls = document.getElementById("lockScreen");
+      if (ls) ls.style.display = "none";
+    }
+  } catch(e) {}
+
+  var lockInput = document.getElementById("lockInput");
+  if (!lockInput) return;
+
+  // Listen for Enter key - use all possible events for maximum iPad compatibility
+  ["keydown", "keyup", "keypress"].forEach(function(evtName) {
+    lockInput.addEventListener(evtName, function(e) {
+      var isEnter = (e.key === "Enter" || e.keyCode === 13 || e.which === 13 || e.charCode === 13);
+      if (isEnter) {
+        e.preventDefault();
+        e.stopPropagation();
+        checkPassword();
+      }
+    });
+  });
+}
+
+// Try multiple ways to init in case DOMContentLoaded already fired
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initLock);
+} else {
+  initLock();
+}
+// Also try on window load as final fallback
+window.addEventListener("load", initLock);
+</script>
 </head>
 <body>
 
@@ -220,7 +271,7 @@ body.dark .btn-navy:hover { opacity: .85; }
     <div class="lock-tagline">Order Management System</div>
     <div class="lock-divider" style="height:1px;background:#e2e6ed;margin:24px 0;"></div>
     <label class="lock-label">Enter Password</label>
-    <input class="lock-input" type="password" id="lockInput" placeholder="••••••••" onkeydown="if(event.key==='Enter')checkPassword()" />
+    <input class="lock-input" type="password" id="lockInput" placeholder="••••••••" />
     <div class="lock-error" id="lockError">Incorrect password. Please try again.</div>
     <button class="lock-btn" onclick="checkPassword()">Unlock</button>
   </div>
@@ -362,25 +413,10 @@ body.dark .btn-navy:hover { opacity: .85; }
 
 <script>
 var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbya8lV2TGT6lpYtMYyPLOF33-b-rhJCfdg9shxbrUIRGFUkDCNEjgOM7lAG4YOJh9V-VA/exec";
-var CORRECT_PASSWORD = "hpc5788";
 var editingInvoice = null;
 var lastOrder = null;
 
 // ── Password ───────────────────────────────────────────────
-function checkPassword() {
-  var input = document.getElementById("lockInput").value;
-  if (input === CORRECT_PASSWORD) {
-    document.getElementById("lockScreen").style.display = "none";
-    sessionStorage.setItem("hpc_unlocked", "1");
-  } else {
-    document.getElementById("lockError").style.display = "block";
-    document.getElementById("lockInput").value = "";
-    document.getElementById("lockInput").focus();
-  }
-}
-if (sessionStorage.getItem("hpc_unlocked") === "1") {
-  document.getElementById("lockScreen").style.display = "none";
-}
 
 // ── Dark Mode ──────────────────────────────────────────────
 function toggleDark() {
@@ -487,7 +523,11 @@ function makeSearchSelect(containerId, items, onSelect) {
   var inp = c.querySelector(".ss-input");
   var sel = "";
   var highlightedIdx = -1;
+  var isSelecting = false;
+  var isOpen = false;
+  var currentFiltered = [];
 
+  // Dropdown appended to body - breaks out of all overflow
   var dd = document.createElement("div");
   dd.style.cssText = "display:none;position:fixed;z-index:99999;background:#fff;border:1.5px solid #e8890a;border-radius:8px;box-shadow:0 4px 24px rgba(26,35,64,.14);max-height:210px;overflow-y:auto;";
   document.body.appendChild(dd);
@@ -501,79 +541,130 @@ function makeSearchSelect(containerId, items, onSelect) {
 
   function getOpts() { return dd.querySelectorAll(".ss-option"); }
 
-  function setHL(idx) {
+  function setHL(i) {
     var opts = getOpts();
     opts.forEach(function(o) { o.classList.remove("highlighted"); });
-    if (idx >= 0 && idx < opts.length) {
-      highlightedIdx = idx;
-      opts[idx].classList.add("highlighted");
-      opts[idx].scrollIntoView({ block: "nearest" });
-    } else { highlightedIdx = -1; }
+    highlightedIdx = -1;
+    if (i >= 0 && i < opts.length) {
+      highlightedIdx = i;
+      opts[i].classList.add("highlighted");
+      opts[i].scrollIntoView({ block: "nearest" });
+    }
   }
 
   function render(q) {
     highlightedIdx = -1;
     var q2 = (q || "").trim().toLowerCase();
-    var filtered = items.filter(function(it) { return !q2 || it.label.toLowerCase().indexOf(q2) !== -1; });
-    if (!filtered.length) { dd.innerHTML = '<div class="ss-no-results">No results</div>'; return; }
-    dd.innerHTML = filtered.map(function(it) {
-      return '<div class="ss-option' + (it.value === sel ? " selected" : "") + '" data-value="' + it.value + '">' + highlight(it.label, q) + '</div>';
+    currentFiltered = items.filter(function(it) {
+      return !q2 || it.label.toLowerCase().indexOf(q2) !== -1;
+    });
+    if (!currentFiltered.length) {
+      dd.innerHTML = '<div class="ss-no-results">No results</div>';
+      return;
+    }
+    dd.innerHTML = currentFiltered.map(function(it, i) {
+      return '<div class="ss-option' + (it.value === sel ? " selected" : "") +
+        '" data-value="' + it.value + '" data-idx="' + i + '">' +
+        highlight(it.label, q) + '</div>';
     }).join("");
+
+    // Both mousedown (desktop) and touchend (mobile)
     dd.querySelectorAll(".ss-option").forEach(function(opt) {
-      opt.addEventListener("mousedown", function(e) { e.preventDefault(); doSelect(opt.dataset.value); });
+      function pick(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        isSelecting = true;
+        doSelect(opt.dataset.value);
+      }
+      opt.addEventListener("mousedown", pick);
+      opt.addEventListener("touchend", pick);
     });
   }
 
   function doSelect(val) {
+    isSelecting = true;
     sel = val;
     var found = items.find(function(i) { return i.value === val; });
     inp.value = found ? found.label : "";
-    close(); onSelect(val);
+    close();
+    onSelect(val);
+    setTimeout(function() { isSelecting = false; }, 300);
   }
 
   function open() {
-    document.querySelectorAll(".ss-open-dd").forEach(function(el) { el.style.display = "none"; el.classList.remove("ss-open-dd"); });
-    render(inp.value); positionDD();
-    dd.style.display = "block"; dd.classList.add("ss-open-dd");
-    c.classList.add("open");
+    render(inp.value);
+    positionDD();
+    dd.style.display = "block";
+    isOpen = true;
   }
-  function close() { dd.style.display = "none"; dd.classList.remove("ss-open-dd"); c.classList.remove("open"); highlightedIdx = -1; }
+
+  function close() {
+    dd.style.display = "none";
+    isOpen = false;
+    highlightedIdx = -1;
+  }
 
   inp.addEventListener("focus", function() { open(); });
-  inp.addEventListener("input", function() { render(inp.value); positionDD(); dd.style.display = "block"; c.classList.add("open"); });
+
+  inp.addEventListener("input", function() {
+    render(inp.value);
+    positionDD();
+    dd.style.display = "block";
+    isOpen = true;
+  });
+
+  // Keyboard navigation (desktop)
   inp.addEventListener("keydown", function(e) {
-    if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter" || e.key === "Escape") {
+    var key = e.key;
+    if (["ArrowDown","ArrowUp","Enter","Escape"].indexOf(key) !== -1) {
       e.preventDefault();
+      e.stopPropagation();
+    } else {
+      return; // let other keys type normally
     }
-    if (e.key === "Escape") { close(); inp.blur(); return; }
-    // Make sure dropdown is open and rendered
-    if (dd.style.display === "none") { open(); return; }
+
+    if (key === "Escape") { close(); inp.blur(); return; }
+    if (!isOpen) { open(); return; }
+
     var opts = getOpts();
     if (!opts.length) return;
-    if (e.key === "ArrowDown") {
-      setHL(highlightedIdx < opts.length - 1 ? highlightedIdx + 1 : 0);
-    } else if (e.key === "ArrowUp") {
-      setHL(highlightedIdx > 0 ? highlightedIdx - 1 : opts.length - 1);
-    } else if (e.key === "Enter") {
-      // Pick highlighted, else pick first result
+
+    if (key === "ArrowDown") {
+      var next = highlightedIdx < opts.length - 1 ? highlightedIdx + 1 : 0;
+      setHL(next);
+    } else if (key === "ArrowUp") {
+      var prev = highlightedIdx > 0 ? highlightedIdx - 1 : opts.length - 1;
+      setHL(prev);
+    } else if (key === "Enter") {
       var target = (highlightedIdx >= 0 && opts[highlightedIdx]) ? opts[highlightedIdx] : opts[0];
-      if (target) doSelect(target.dataset.value);
+      if (target) {
+        isSelecting = true;
+        doSelect(target.dataset.value);
+      }
     }
   });
+
   inp.addEventListener("blur", function() {
+    if (isSelecting) return;
     setTimeout(function() {
+      if (isSelecting) return;
       close();
-      if (sel) { var f = items.find(function(i) { return i.value === sel; }); if (f) inp.value = f.label; }
-      else inp.value = "";
-    }, 200);
+      if (sel) {
+        var f = items.find(function(i) { return i.value === sel; });
+        if (f) inp.value = f.label;
+      } else {
+        inp.value = "";
+      }
+    }, 250);
   });
-  window.addEventListener("scroll", function() { if (dd.style.display !== "none") positionDD(); }, true);
-  window.addEventListener("resize", function() { if (dd.style.display !== "none") positionDD(); });
+
+  window.addEventListener("scroll", function() { if (isOpen) positionDD(); }, true);
+  window.addEventListener("resize", function() { if (isOpen) positionDD(); });
 
   return {
     getValue: function() { return sel; },
     setValue: function(v) { doSelect(v); },
-    reset: function() { sel = ""; inp.value = ""; }
+    reset: function() { sel = ""; inp.value = ""; close(); }
   };
 }
 
@@ -584,7 +675,7 @@ var custSS = makeSearchSelect("ss-customer", custItems, function(id) {
   document.getElementById("area").value = CUSTOMERS[id].area;
 });
 
-var prodItems = Object.keys(PRODUCTS).map(function(code) { return { value: code, label: code + " - " + PRODUCTS[code].name + " (RM " + PRODUCTS[code].price.toFixed(2) + ")" }; });
+var prodItems = Object.keys(PRODUCTS).map(function(code) { return { value: code, label: code + " - " + PRODUCTS[code].name }; });
 
 // ── Items ──────────────────────────────────────────────────
 var itemId = 0, itemSSMap = {};

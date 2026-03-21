@@ -495,11 +495,11 @@ function renderUsageReport(records) {
       });
       if (u.west) u.west.forEach(function(row) {
         var i = monthNames.indexOf(row.month);
-        if (i >= 0) prev.west[("0"+(i+1)).slice(-2)] = parseFloat(row.west_prev !== undefined ? row.west_prev : row.prev) || 0;
+        if (i >= 0) prev.west[("0"+(i+1)).slice(-2)] = parseFloat(row.prev) || 0;
       });
       if (u.east) u.east.forEach(function(row) {
         var i = monthNames.indexOf(row.month);
-        if (i >= 0) prev.east[("0"+(i+1)).slice(-2)] = parseFloat(row.east_prev !== undefined ? row.east_prev : row.prev) || 0;
+        if (i >= 0) prev.east[("0"+(i+1)).slice(-2)] = parseFloat(row.prev) || 0;
       });
       console.log("prev combined:", JSON.stringify(prev.combined));
       console.log("prev west:", JSON.stringify(prev.west));

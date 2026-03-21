@@ -425,7 +425,7 @@ function renderTable() {
     (o.id||'').toLowerCase().includes(q) ||
     (o.plant||'').toLowerCase().includes(q) ||
     (o.company||'').toLowerCase().includes(q) ||
-    (o.do||'').toLowerCase().includes(q) ||
+    (o.doNo||'').toLowerCase().includes(q) ||
     (o.items||'').toLowerCase().includes(q)
   );
 
@@ -439,7 +439,7 @@ function renderTable() {
       <span class="cell-id">${o.id}</span>
       <span class="cell-plant">${o.plant||'—'}</span>
       <span class="cell-company">${o.company||'—'}</span>
-      <span class="cell-do">${o.do||'—'}</span>
+      <span class="cell-do">${o.doNo||'—'}</span>
       <span class="cell-kg">${o.kg ? o.kg+' kg' : '—'}</span>
       <span class="cell-items">${o.items||'—'}</span>
       <span class="cell-actions" onclick="event.stopPropagation()">
@@ -473,7 +473,7 @@ function showDetail(id) {
   document.getElementById('detail-grid').innerHTML = [
     ['🏭 PLANT', o.plant],
     ['🏢 COMPANY', o.company],
-    ['📄 D.O NO.', o.do||'—'],
+    ['📄 D.O NO.', o.doNo||'—'],
     ['📅 DATE', o.date||'—'],
     ['⚖️ KG', o.kg ? o.kg+' kg' : '—'],
     ['🧪 ADMIXTURE', o.items||'—'],
@@ -501,7 +501,7 @@ function openModal(id) {
 
   const plantId = o ? Object.keys(PLANTS).find(k => PLANTS[k] === o.plant) : '';
   document.getElementById('f-plant').value = plantId || '';
-  document.getElementById('f-do').value = o ? (o.do||'') : '';
+  document.getElementById('f-do').value = o ? (o.doNo||'') : '';
   const dateVal = o ? (o.date||todayStr()) : todayStr();
   setTimeout(() => { document.getElementById('f-date').value = dateVal; }, 10);
   document.getElementById('f-kg').value = o ? (o.kg||'') : '';
@@ -550,7 +550,7 @@ async function saveOrder() {
     id:      editingOrderId || ('ORD-' + uid()),
     plant:   PLANTS[plantId],
     company: COMPANIES[plantId],
-    do:      document.getElementById('f-do').value.trim(),
+    doNo:    document.getElementById('f-do').value.trim(),
     date:    document.getElementById('f-date').value,
     kg:      document.getElementById('f-kg').value,
     items:   document.getElementById('f-items').value.toUpperCase(),
@@ -560,22 +560,36 @@ async function saveOrder() {
 
   setModalStatus('saving');
 
+  // Use fetch with no-cors, then assume success after 3s timeout
+  // (Apps Script doesn't support CORS from browser directly)
+  const payload = JSON.stringify({
+    plant:  formData.plant,
+    doNo:   formData.doNo,
+    date:   formData.date,
+    items:  formData.items,
+    kg:     formData.kg,
+    notes:  formData.notes,
+  });
+
   try {
-    await fetch(SCRIPT_URL, {
-      method: 'POST',
+    // Build URL with query params — most reliable with Apps Script + no-cors
+    const params = new URLSearchParams();
+    params.append('plant', formData.plant || '');
+    params.append('doNo',  formData.doNo    || '');
+    params.append('date',  formData.date  || '');
+    params.append('items', formData.items || '');
+    params.append('kg',    formData.kg    || '');
+    params.append('notes', formData.notes || '');
+
+    const fullURL = SCRIPT_URL + '?' + params.toString();
+    console.log('Submitting:', fullURL);
+
+    fetch(fullURL, {
+      method: 'GET',
       mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        plant:  formData.plant,
-        doNo:   formData.do,
-        date:   formData.date,
-        items:  formData.items,
-        kg:     formData.kg,
-        notes:  formData.notes,
-      }),
     });
 
-    // Update local state
+    // Update local state immediately (no-cors = can't read response)
     if (editingOrderId) {
       const idx = orders.findIndex(o => o.id === editingOrderId);
       if (idx >= 0) orders[idx] = formData;
@@ -637,7 +651,7 @@ function renderDriver() {
   if (orders.length === 0) { recent.innerHTML = '<div class="empty">No orders yet</div>'; return; }
   recent.innerHTML = orders.slice(0,5).map(o => `
     <div class="recent-row">
-      <div><div class="recent-plant">${o.plant||'—'}</div><div class="recent-do">D.O: ${o.do||'—'}</div></div>
+      <div><div class="recent-plant">${o.plant||'—'}</div><div class="recent-do">D.O: ${o.doNo||'—'}</div></div>
       <div><div class="recent-id">${o.id}</div><div class="recent-date">${o.date||''}</div></div>
     </div>
   `).join('');
@@ -653,9 +667,9 @@ document.addEventListener('click', e => {
 
 function exportCSV() {
   const q = document.getElementById('search-input').value.toLowerCase();
-  const filtered = orders.filter(o => !q || (o.plant||'').toLowerCase().includes(q) || (o.do||'').toLowerCase().includes(q) || (o.items||'').toLowerCase().includes(q));
+  const filtered = orders.filter(o => !q || (o.plant||'').toLowerCase().includes(q) || (o.doNo||'').toLowerCase().includes(q) || (o.items||'').toLowerCase().includes(q));
   const header = ['ORDER ID','D.O NO.','PLANT','COMPANY','DATE','KG','ADMIXTURE','DRIVER','CREATED','NOTES'];
-  const rows = filtered.map(o => [o.id, o.do||'', o.plant||'', o.company||'', o.date||'', o.kg||'', o.items||'', driver.name, o.created||'', o.notes||'']);
+  const rows = filtered.map(o => [o.id, o.doNo||'', o.plant||'', o.company||'', o.date||'', o.kg||'', o.items||'', driver.name, o.created||'', o.notes||'']);
   const csv = [header,...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
   const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
@@ -665,9 +679,9 @@ function exportCSV() {
 
 function exportHTMLReport() {
   const q = document.getElementById('search-input').value.toLowerCase();
-  const filtered = orders.filter(o => !q || (o.plant||'').toLowerCase().includes(q) || (o.do||'').toLowerCase().includes(q));
+  const filtered = orders.filter(o => !q || (o.plant||'').toLowerCase().includes(q) || (o.doNo||'').toLowerCase().includes(q));
   const rows = filtered.map(o => `<tr>
-    <td>${o.id}</td><td>${o.do||'-'}</td><td>${o.plant||'-'}</td><td>${o.company||'-'}</td>
+    <td>${o.id}</td><td>${o.doNo||'-'}</td><td>${o.plant||'-'}</td><td>${o.company||'-'}</td>
     <td>${o.date||'-'}</td><td>${o.kg ? o.kg+' kg':'-'}</td><td>${o.items||'-'}</td><td>${o.notes||'-'}</td>
   </tr>`).join('');
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>HPC Delivery Report</title>
@@ -684,7 +698,8 @@ function exportHTMLReport() {
   <table><thead><tr>
     <th>ORDER ID</th><th>D.O NO.</th><th>PLANT</th><th>COMPANY</th>
     <th>DATE</th><th>KG</th><th>ADMIXTURE</th><th>NOTES</th>
-  </tr></thead><tbody>${rows}</tbody></table></body></html>`;
+  </tr></thead><tbody>${rows}</tbody></table><iframe name="hidden_iframe" style="display:none"></iframe>
+</body></html>`;
   const blob = new Blob([html], {type:'text/html;charset=utf-8;'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = `HPC_Report_${todayStr()}.html`; a.click();
@@ -695,5 +710,6 @@ function exportHTMLReport() {
 document.getElementById('page-date').textContent = new Date().toLocaleDateString('en-MY',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
 renderTable();
 </script>
+<iframe name="hidden_iframe" style="display:none"></iframe>
 </body>
 </html>

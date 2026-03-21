@@ -452,13 +452,22 @@ function renderUsageReport(records) {
   records.forEach(function(r) {
     var dateStr = r.date ? r.date.toString() : "";
     var yr = "", mo = "";
-    if (r.date && typeof r.date === 'object') {
+    // Handle all date formats from Google Sheets
+    try {
       var d = new Date(r.date);
-      yr = d.getFullYear().toString();
-      mo = ("0" + (d.getMonth() + 1)).slice(-2);
-    } else if (dateStr.indexOf("-") > -1) {
+      if (!isNaN(d.getTime())) {
+        yr = d.getFullYear().toString();
+        mo = ("0" + (d.getMonth() + 1)).slice(-2);
+      }
+    } catch(e) {}
+    if (!yr && dateStr.indexOf("-") > -1) {
       var p = dateStr.split("-");
       yr = p[0]; mo = ("0" + parseInt(p[1])).slice(-2);
+    }
+    if (!yr && dateStr.indexOf("/") > -1) {
+      var p = dateStr.split("/");
+      if (p[0].length === 4) { yr = p[0]; mo = ("0" + parseInt(p[1])).slice(-2); }
+      else { yr = p[2]; mo = ("0" + parseInt(p[0])).slice(-2); }
     }
     if (yr !== currYear || !mo) return;
     var qty  = parseFloat(r.qty) || 0;
@@ -504,12 +513,12 @@ function renderUsageReport(records) {
       var hasCurr = vals.some(function(v) { return v.c > 0; });
 
       var cols = vals.map(function(v, i) {
-        var hc = Math.round((v.c / maxVal) * 100);
-        var hp = Math.round((v.p / maxVal) * 100);
+        var hc = v.c > 0 ? Math.max(4, Math.round((v.c / maxVal) * 100)) : 0;
+        var hp = v.p > 0 ? Math.max(4, Math.round((v.p / maxVal) * 100)) : 0;
         return '<div class="chart-col">' +
           '<div class="chart-col-bars">' +
-          (hasCurr ? '<div class="bar-curr" style="height:' + hc + 'px;width:12px;" title="' + currYear + ': ' + formatNum(v.c,0) + '"></div>' : '') +
-          '<div class="bar-prev" style="height:' + hp + 'px;width:12px;" title="' + prevYear + ': ' + formatNum(v.p,0) + '"></div>' +
+          (hasCurr ? '<div class="bar-curr" style="height:' + hc + 'px;width:10px;" title="' + currYear + ': ' + formatNum(v.c,0) + '"></div>' : '') +
+          '<div class="bar-prev" style="height:' + hp + 'px;width:10px;" title="' + prevYear + ': ' + formatNum(v.p,0) + '"></div>' +
           '</div>' +
           '<div class="chart-label">' + monthNames[i] + '</div>' +
           '</div>';

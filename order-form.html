@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HPC Concrete - Order Entry</title>
+<title>HPC Concrete - New Order</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -326,7 +326,7 @@ window.addEventListener("load", initLock);
 
 <div class="page">
   <div class="page-header">
-    <div><h2>New Sales Order</h2><p>Fill in order details and submit to Google Sheets</p></div>
+    <div><h2>New Order</h2><p>Fill in order details and submit to Google Sheets</p></div>
     <span class="meta-chip" id="todayDate"></span>
   </div>
 
@@ -340,7 +340,7 @@ window.addEventListener("load", initLock);
       <div class="edit-bar">
         <div class="form-group">
           <label>Invoice No. to Edit or Delete</label>
-          <input type="text" id="editInvoiceNo" placeholder="e.g. INV-20260319-001" />
+          <input type="text" id="editInvoiceNo" placeholder="" />
         </div>
         <button class="btn-navy" onclick="loadForEdit()">Load Order</button>
         <button class="btn-danger" onclick="deleteOrder()">Delete Order</button>

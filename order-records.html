@@ -136,6 +136,30 @@
 }
 .lock-btn:hover { background: var(--accent-dark); }
 .lock-error { display: none; color: var(--danger); font-size: 12px; margin-top: 8px; }
+
+/* Chart */
+.chart-wrap { margin-top: 20px; }
+.chart-bars { display: flex; align-items: flex-end; gap: 4px; height: 140px; padding: 0 4px; }
+.chart-col { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1; }
+.chart-col-bars { display: flex; gap: 2px; align-items: flex-end; height: 110px; }
+.bar-curr { background: var(--accent); border-radius: 3px 3px 0 0; min-height: 2px; transition: height .3s; position: relative; cursor: pointer; }
+.bar-prev { background: var(--muted); opacity: .5; border-radius: 3px 3px 0 0; min-height: 2px; transition: height .3s; position: relative; cursor: pointer; }
+.bar-curr:hover, .bar-prev:hover { opacity: .8; }
+.chart-label { font-size: 9px; color: var(--muted); font-weight: 600; text-align: center; }
+.chart-legend { display: flex; gap: 16px; margin-top: 8px; font-size: 11px; color: var(--muted); }
+.legend-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 4px; }
+
+/* Print */
+@media print {
+  body { background: #fff !important; }
+  .topbar, .tab-bar, .btn-load-data, .filters, .card:not(.print-card) { display: none !important; }
+  .print-card { display: block !important; box-shadow: none !important; border: 1px solid #ddd !important; }
+  .print-header { display: flex !important; }
+  @page { margin: 15mm; size: A4 landscape; }
+}
+.print-header { display: none; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #e2e6ed; }
+.print-btn { background: var(--navy); color: #fff; border: none; border-radius: 7px; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; font-family: 'Inter',sans-serif; }
+.print-btn:hover { opacity: .85; }
 </style>
 </head>
 <body>
@@ -219,6 +243,9 @@
         <div id="productRank"><div class="empty-state"><div class="icon">📦</div>Load data to view product ranking</div></div>
       </div>
       <div class="tab-panel" id="tab-usage">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+          <button class="print-btn" onclick="printUsageReport()">🖨 Print Usage Report</button>
+        </div>
         <div id="usageReport"><div class="empty-state"><div class="icon">📊</div>Load data to view usage report</div></div>
       </div>
     </div>
@@ -420,9 +447,7 @@ function switchTab(name, el){
 function renderUsageReport(records) {
   var monthNames = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
   var currYear = new Date().getFullYear().toString();
-  var prevYear = (parseInt(currYear) - 1).toString();
 
-  // Calculate current year from order records
   var curr = { combined: {}, west: {}, east: {} };
   records.forEach(function(r) {
     var dateStr = r.date ? r.date.toString() : "";
@@ -433,7 +458,7 @@ function renderUsageReport(records) {
       mo = ("0" + (d.getMonth() + 1)).slice(-2);
     } else if (dateStr.indexOf("-") > -1) {
       var p = dateStr.split("-");
-      yr = p[0]; mo = ("0" + p[1]).slice(-2);
+      yr = p[0]; mo = ("0" + parseInt(p[1])).slice(-2);
     }
     if (yr !== currYear || !mo) return;
     var qty  = parseFloat(r.qty) || 0;
@@ -443,7 +468,8 @@ function renderUsageReport(records) {
     if (area === "EAST") curr.east[mo] = (curr.east[mo] || 0) + qty;
   });
 
-  // Load previous year from Monthly Usage sheet
+  document.getElementById("usageReport").innerHTML = '<div class="loading-state">⏳ Loading usage data...</div>';
+
   var cbName = "usage" + Date.now();
   var s = document.createElement("script");
   window[cbName] = function(r) {
@@ -453,53 +479,94 @@ function renderUsageReport(records) {
     var prev = { combined: {}, west: {}, east: {} };
     if (r && r.success && r.usage) {
       var u = r.usage;
-      if (u.combined) u.combined.forEach(function(row) { prev.combined[monthNames.indexOf(row.month) + 1] = row.prev; });
-      if (u.west)     u.west.forEach(function(row)     { prev.west[monthNames.indexOf(row.month) + 1]     = row.prev; });
-      if (u.east)     u.east.forEach(function(row)     { prev.east[monthNames.indexOf(row.month) + 1]     = row.prev; });
+      if (u.combined) u.combined.forEach(function(row) {
+        var i = monthNames.indexOf(row.month);
+        if (i >= 0) prev.combined[("0"+(i+1)).slice(-2)] = row.prev;
+      });
+      if (u.west) u.west.forEach(function(row) {
+        var i = monthNames.indexOf(row.month);
+        if (i >= 0) prev.west[("0"+(i+1)).slice(-2)] = row.prev;
+      });
+      if (u.east) u.east.forEach(function(row) {
+        var i = monthNames.indexOf(row.month);
+        if (i >= 0) prev.east[("0"+(i+1)).slice(-2)] = row.prev;
+      });
+    }
+
+    var prevYear = (parseInt(currYear) - 1).toString();
+
+    function buildChart(currData, prevData) {
+      var vals = monthNames.map(function(n, i) {
+        var mo = ("0"+(i+1)).slice(-2);
+        return { c: parseFloat(currData[mo]) || 0, p: parseFloat(prevData[mo]) || 0 };
+      });
+      var maxVal = Math.max.apply(null, vals.map(function(v) { return Math.max(v.c, v.p); })) || 1;
+      var hasCurr = vals.some(function(v) { return v.c > 0; });
+
+      var cols = vals.map(function(v, i) {
+        var hc = Math.round((v.c / maxVal) * 100);
+        var hp = Math.round((v.p / maxVal) * 100);
+        return '<div class="chart-col">' +
+          '<div class="chart-col-bars">' +
+          (hasCurr ? '<div class="bar-curr" style="height:' + hc + 'px;width:12px;" title="' + currYear + ': ' + formatNum(v.c,0) + '"></div>' : '') +
+          '<div class="bar-prev" style="height:' + hp + 'px;width:12px;" title="' + prevYear + ': ' + formatNum(v.p,0) + '"></div>' +
+          '</div>' +
+          '<div class="chart-label">' + monthNames[i] + '</div>' +
+          '</div>';
+      }).join('');
+
+      return '<div class="chart-wrap">' +
+        '<div class="chart-bars">' + cols + '</div>' +
+        '<div class="chart-legend">' +
+        (hasCurr ? '<span><span class="legend-dot" style="background:var(--accent)"></span>' + currYear + '</span>' : '') +
+        '<span><span class="legend-dot" style="background:var(--muted);opacity:.5"></span>' + prevYear + '</span>' +
+        '</div></div>';
     }
 
     function buildTable(title, currData, prevData) {
+      var hasCurr = Object.keys(currData).length > 0;
       var currTotal = 0, prevTotal = 0;
       var rows = monthNames.map(function(name, i) {
-        var mo = ("0" + (i + 1)).slice(-2);
-        var moNum = i + 1;
+        var mo = ("0"+(i+1)).slice(-2);
         var c = parseFloat(currData[mo]) || 0;
-        var p = parseFloat(prevData[moNum]) || 0;
+        var p = parseFloat(prevData[mo]) || 0;
         var diff = c - p;
         currTotal += c; prevTotal += p;
         return '<tr style="border-bottom:1px solid var(--border)">' +
-          '<td style="padding:8px 10px;font-weight:600">' + name + '</td>' +
-          '<td style="padding:8px 10px;text-align:right;font-family:monospace">' + (c ? formatNum(c, 0) : '-') + '</td>' +
-          '<td style="padding:8px 10px;text-align:right;font-family:monospace;color:var(--muted)">' + (p ? formatNum(p, 0) : '-') + '</td>' +
-          '<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:600;color:' + (diff > 0 ? 'var(--success)' : diff < 0 ? 'var(--danger)' : 'var(--muted)') + '">' +
-            (c || p ? (diff > 0 ? '+' : '') + formatNum(diff, 0) : '-') + '</td>' +
+          '<td style="padding:7px 10px;font-weight:600">' + name + '</td>' +
+          (hasCurr ? '<td style="padding:7px 10px;text-align:right;font-family:monospace;color:var(--accent)">' + (c ? formatNum(c,0) : '-') + '</td>' : '') +
+          '<td style="padding:7px 10px;text-align:right;font-family:monospace;color:var(--muted)">' + (p ? formatNum(p,0) : '-') + '</td>' +
+          (hasCurr ? '<td style="padding:7px 10px;text-align:right;font-family:monospace;font-weight:600;color:' + (c && diff>0?'var(--success)':c && diff<0?'var(--danger)':'var(--muted)') + '">' + (c?(diff>0?'+':'')+formatNum(diff,0):'-') + '</td>' : '') +
           '</tr>';
       }).join('');
+
       var totalDiff = currTotal - prevTotal;
-      return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:0">' +
-        '<div style="padding:12px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:13px;font-weight:700;color:var(--navy)">' + title + '</div>' +
-        '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:280px">' +
-        '<thead><tr style="border-bottom:2px solid var(--border)">' +
-          '<th style="padding:8px 10px;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;text-align:left">Month</th>' +
-          '<th style="padding:8px 10px;font-size:10.5px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;text-align:right">' + currYear + '</th>' +
-          '<th style="padding:8px 10px;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;text-align:right">' + prevYear + '</th>' +
-          '<th style="padding:8px 10px;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;text-align:right">+/-</th>' +
-        '</tr></thead>' +
+      var headers = '<th style="padding:8px 10px;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;text-align:left">Month</th>';
+      if (hasCurr) headers += '<th style="padding:8px 10px;font-size:10.5px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;text-align:right">' + currYear + '</th>';
+      headers += '<th style="padding:8px 10px;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;text-align:right">' + prevYear + '</th>';
+      if (hasCurr) headers += '<th style="padding:8px 10px;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;text-align:right">+/-</th>';
+
+      var footer = '<td style="padding:8px 10px;font-weight:700">TOTAL</td>';
+      if (hasCurr) footer += '<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:700;color:var(--accent)">' + formatNum(currTotal,0) + '</td>';
+      footer += '<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:700;color:var(--muted)">' + formatNum(prevTotal,0) + '</td>';
+      if (hasCurr) footer += '<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:700;color:' + (totalDiff>0?'var(--success)':totalDiff<0?'var(--danger)':'var(--muted)') + '">' + (totalDiff>0?'+':'') + formatNum(totalDiff,0) + '</td>';
+
+      return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">' +
+        '<div style="padding:12px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:13px;font-weight:700;color:var(--navy)">' + title +
+        (hasCurr ? '' : ' <span style="font-size:11px;color:var(--muted);font-weight:400">(' + prevYear + ' only)</span>') + '</div>' +
+        buildChart(currData, prevData) +
+        '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:240px">' +
+        '<thead><tr style="border-bottom:2px solid var(--border)">' + headers + '</tr></thead>' +
         '<tbody>' + rows + '</tbody>' +
-        '<tfoot><tr style="border-top:2px solid var(--border);background:var(--surface2)">' +
-          '<td style="padding:8px 10px;font-weight:700">TOTAL</td>' +
-          '<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:700;color:var(--accent)">' + formatNum(currTotal, 0) + '</td>' +
-          '<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:700;color:var(--muted)">' + formatNum(prevTotal, 0) + '</td>' +
-          '<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:700;color:' + (totalDiff > 0 ? 'var(--success)' : totalDiff < 0 ? 'var(--danger)' : 'var(--muted)') + '">' +
-            (totalDiff > 0 ? '+' : '') + formatNum(totalDiff, 0) + '</td>' +
-        '</tr></tfoot>' +
+        '<tfoot><tr style="border-top:2px solid var(--border);background:var(--surface2)">' + footer + '</tr></tfoot>' +
         '</table></div></div>';
     }
 
-    var html = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">' +
+    var html =
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:0">' +
       buildTable('West &amp; East Combined', curr.combined, prev.combined) +
-      buildTable('West Only', curr.west, prev.west) +
-      buildTable('East Only', curr.east, prev.east) +
+      buildTable('West', curr.west, prev.west) +
+      buildTable('East', curr.east, prev.east) +
       '</div>';
 
     document.getElementById("usageReport").innerHTML = html;
@@ -510,10 +577,48 @@ function renderUsageReport(records) {
     delete window[cbName];
     document.getElementById("usageReport").innerHTML = '<div class="empty-state"><div class="icon">⚠️</div>Failed to load usage data</div>';
   };
-
-  document.getElementById("usageReport").innerHTML = '<div class="loading-state">⏳ Loading usage data...</div>';
   s.src = SCRIPT_URL + "?action=getMonthlyUsage&callback=" + cbName;
   document.head.appendChild(s);
+}
+
+function printUsageReport() {
+  var content = document.getElementById("usageReport").innerHTML;
+  var logo = document.querySelector(".topbar-logo") ? document.querySelector(".topbar-logo").src : "";
+  var win = window.open("", "_blank");
+  win.document.write(
+    '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
+    '<title>HPC Concrete - Annual Usage Report</title>' +
+    '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">' +
+    '<style>' +
+    'body{font-family:Inter,sans-serif;margin:0;padding:20px;color:#1a2340;}' +
+    '.print-header{display:flex;align-items:center;gap:14px;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #e2e6ed;}' +
+    '.print-header img{width:48px;height:48px;object-fit:contain;}' +
+    '.print-header h1{font-size:18px;font-weight:700;margin:0;}' +
+    '.print-header p{font-size:12px;color:#6b7a96;margin:3px 0 0;}' +
+    'table{width:100%;border-collapse:collapse;}' +
+    'th,td{padding:6px 10px;font-size:12px;}' +
+    'th{background:#1e3a5f;color:#fff;font-weight:700;text-transform:uppercase;letter-spacing:.05em;}' +
+    'tr:nth-child(even){background:#f8f9fb;}' +
+    '.chart-bars{display:flex;align-items:flex-end;gap:4px;height:100px;padding:0 4px;}' +
+    '.chart-col{display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;}' +
+    '.chart-col-bars{display:flex;gap:2px;align-items:flex-end;height:80px;}' +
+    '.bar-curr{background:#e8890a;border-radius:2px 2px 0 0;min-height:2px;}' +
+    '.bar-prev{background:#9aa3b5;opacity:.6;border-radius:2px 2px 0 0;min-height:2px;}' +
+    '.chart-label{font-size:8px;color:#6b7a96;font-weight:600;}' +
+    '.chart-legend{display:flex;gap:12px;font-size:10px;color:#6b7a96;margin:4px 0 8px 4px;}' +
+    '.legend-dot{width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:3px;}' +
+    '@media print{@page{size:A4 landscape;margin:12mm}}' +
+    '</style></head><body>' +
+    '<div class="print-header">' +
+    '<img src="' + logo + '" />' +
+    '<div><h1>HPC Concrete - Annual Usage Report</h1>' +
+    '<p>Printed on ' + new Date().toLocaleDateString("en-GB") + ' &nbsp;|&nbsp; ' + new Date().getFullYear() + ' vs ' + (new Date().getFullYear()-1) + ' Comparison</p></div>' +
+    '</div>' +
+    content +
+    '<script>window.onload=function(){window.print();}<\/script>' +
+    '</body></html>'
+  );
+  win.document.close();
 }
 
 var toastTimer;

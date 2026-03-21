@@ -143,7 +143,7 @@
 .chart-col { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1; }
 .chart-col-bars { display: flex; gap: 2px; align-items: flex-end; height: 110px; }
 .bar-curr { background: var(--accent); border-radius: 3px 3px 0 0; min-height: 2px; transition: height .3s; position: relative; cursor: pointer; }
-.bar-prev { background: var(--muted); opacity: .5; border-radius: 3px 3px 0 0; min-height: 2px; transition: height .3s; position: relative; cursor: pointer; }
+.bar-prev { background: #9aa3b5; border-radius: 3px 3px 0 0; min-height: 2px; transition: height .3s; position: relative; cursor: pointer; }
 .bar-curr:hover, .bar-prev:hover { opacity: .8; }
 .chart-label { font-size: 9px; color: var(--muted); font-weight: 600; text-align: center; }
 .chart-legend { display: flex; gap: 16px; margin-top: 8px; font-size: 11px; color: var(--muted); }
@@ -526,7 +526,7 @@ function renderUsageReport(records) {
         return '<div class="chart-col">' +
           '<div class="chart-col-bars">' +
           (hasCurr ? '<div class="bar-curr" style="height:' + hc + 'px;width:10px;flex-shrink:0;" title="' + currYear + ': ' + formatNum(v.c,0) + '"></div>' : '') +
-          (hasPrev ? '<div class="bar-prev" style="height:' + hp + 'px;width:10px;flex-shrink:0;" title="' + prevYear + ': ' + formatNum(v.p,0) + '"></div>' : '') +
+          (hasPrev ? '<div class="bar-prev" style="height:' + hp + 'px;width:10px;flex-shrink:0;background:#9aa3b5;" title="' + prevYear + ': ' + formatNum(v.p,0) + '"></div>' : '') +
           '</div>' +
           '<div class="chart-label">' + monthNames[i] + '</div>' +
           '</div>';

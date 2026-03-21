@@ -692,81 +692,93 @@ function printUsageReport() {
 }
 
 function printInvoiceFromRecords(invoiceNo) {
-  // Get all rows for this invoice from allRecords
   var rows = allRecords.filter(function(r) { return String(r.invoiceNo) === String(invoiceNo); });
   if (!rows.length) { showToast("Invoice not found", "error"); return; }
-
   var first = rows[0];
   var date = String(first.date || "").substring(0, 10);
   var company = first.companyName || "";
   var area = first.area || "";
   var custId = first.customerId || "";
   var orderTotal = rows.reduce(function(s, r) { return s + (parseFloat(r.amount) || 0); }, 0);
-
   var itemRows = rows.map(function(r, i) {
-    return '<tr style="border-bottom:1px solid #e2e6ed;">' +
-      '<td style="padding:10px 12px;">' + (i+1) + '</td>' +
-      '<td style="padding:10px 12px;">' + r.product + '</td>' +
-      '<td style="padding:10px 12px;text-align:right;">' + Number(r.qty).toLocaleString("en-MY") + '</td>' +
-      '<td style="padding:10px 12px;text-align:right;">RM ' + Number(r.unitPrice).toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2}) + '</td>' +
-      '<td style="padding:10px 12px;text-align:right;font-weight:600;">RM ' + Number(r.amount).toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2}) + '</td>' +
+    return '<tr>' +
+      '<td>' + (i+1) + '</td>' +
+      '<td>' + r.product + '</td>' +
+      '<td class="r">' + Number(r.qty).toLocaleString("en-MY") + '</td>' +
+      '<td class="r">RM ' + Number(r.unitPrice).toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2}) + '</td>' +
+      '<td class="r">RM ' + Number(r.amount).toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2}) + '</td>' +
       '</tr>';
   }).join('');
+  var total = orderTotal.toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});
+  var html = buildInvoiceHTML(invoiceNo, date, company, area, custId, itemRows, total);
+  openPrintWindow(html);
+}
 
-  var win = window.open("", "_blank");
-  win.document.write(
-    '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
+function buildInvoiceHTML(invoiceNo, date, company, area, custId, itemRows, orderTotal) {
+  var logoSrc = document.querySelector('.topbar-logo') ? document.querySelector('.topbar-logo').src : '';
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
     '<title>Invoice ' + invoiceNo + '</title>' +
     '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">' +
     '<style>' +
     'body{font-family:Inter,sans-serif;margin:0;padding:32px;color:#1a2340;font-size:14px;}' +
-    '.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;padding-bottom:20px;border-bottom:2px solid #1a2340;}' +
-    '.logo-section{display:flex;align-items:center;gap:14px;}' +
-    '.logo{width:56px;height:56px;object-fit:contain;}' +
-    '.company-name{font-size:18px;font-weight:700;color:#1a2340;}' +
-    '.company-sub{font-size:11px;color:#6b7a96;margin-top:3px;}' +
-    '.inv-section{text-align:right;}' +
-    '.inv-title{font-size:28px;font-weight:700;color:#e8890a;}' +
-    '.inv-no{font-family:"Space Mono",monospace;font-size:14px;font-weight:700;color:#1a2340;margin-top:4px;}' +
-    '.inv-date{font-size:12px;color:#6b7a96;margin-top:2px;}' +
-    '.bill-section{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:28px;padding:16px 20px;background:#f8f9fb;border-radius:8px;}' +
-    '.bill-label{font-size:10px;font-weight:700;color:#6b7a96;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;}' +
-    '.bill-value{font-size:14px;font-weight:600;color:#1a2340;}' +
-    '.bill-sub{font-size:12px;color:#6b7a96;margin-top:2px;}' +
+    '.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;padding-bottom:16px;border-bottom:2px solid #1a2340;}' +
+    '.logo{width:54px;height:54px;object-fit:contain;}' +
+    '.co-name{font-size:17px;font-weight:700;color:#1a2340;margin-left:12px;}' +
+    '.co-sub{font-size:11px;color:#6b7a96;margin-top:2px;}' +
+    '.inv-title{font-size:26px;font-weight:700;color:#e8890a;text-align:right;}' +
+    '.inv-no{font-family:monospace;font-size:14px;font-weight:700;color:#1a2340;text-align:right;margin-top:4px;}' +
+    '.inv-date{font-size:12px;color:#6b7a96;text-align:right;}' +
+    '.bill{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;padding:14px 18px;background:#f8f9fb;border-radius:8px;}' +
+    '.bl{font-size:10px;font-weight:700;color:#6b7a96;text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px;}' +
+    '.bv{font-size:14px;font-weight:600;}' +
+    '.bs{font-size:12px;color:#6b7a96;margin-top:2px;}' +
     'table{width:100%;border-collapse:collapse;}' +
-    'thead th{background:#1a2340;color:#fff;padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;}' +
-    'thead th:last-child,thead th:nth-child(3),thead th:nth-child(4){text-align:right;}' +
-    'tbody tr:last-child td{border-bottom:none;}' +
-    'tbody tr:nth-child(even){background:#f8f9fb;}' +
-    '.total-section{border-top:2px solid #1a2340;padding:12px;display:flex;justify-content:flex-end;}' +
-    '.total-label{font-size:11px;font-weight:700;color:#6b7a96;text-transform:uppercase;letter-spacing:.07em;}' +
-    '.total-value{font-family:"Space Mono",monospace;font-size:26px;font-weight:700;color:#e8890a;margin-top:4px;}' +
-    '.footer{margin-top:32px;padding-top:16px;border-top:1px solid #e2e6ed;font-size:11px;color:#9aa3b5;text-align:center;}' +
+    'th{background:#1a2340;color:#fff;padding:9px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;}' +
+    'th.r,td.r{text-align:right;}' +
+    'td{padding:9px 12px;border-bottom:1px solid #e2e6ed;font-size:13px;}' +
+    'tr:last-child td{border-bottom:none;}' +
+    'tr:nth-child(even){background:#f8f9fb;}' +
+    '.tot{border-top:2px solid #1a2340;padding:12px;display:flex;justify-content:flex-end;}' +
+    '.tl{font-size:10px;font-weight:700;color:#6b7a96;text-transform:uppercase;letter-spacing:.07em;}' +
+    '.tv{font-family:monospace;font-size:24px;font-weight:700;color:#e8890a;margin-top:4px;}' +
+    '.ftr{margin-top:28px;padding-top:14px;border-top:1px solid #e2e6ed;font-size:11px;color:#9aa3b5;text-align:center;}' +
     '@media print{body{padding:16px;}@page{size:A4;margin:12mm}}' +
     '</style></head><body>' +
-    '<div class="header">' +
-      '<div class="logo-section">' +
-        '<img class="logo" src="' + logo + '" />' +
-        '<div><div class="company-name">HPC Concrete</div><div class="company-sub">Concrete Admixture Supplier</div></div>' +
+    '<div class="hdr">' +
+      '<div style="display:flex;align-items:center;">' +
+        '<img class="logo" src="' + logoSrc + '" />' +
+        '<div style="margin-left:12px;"><div class="co-name">HPC Concrete</div><div class="co-sub">Concrete Admixture Supplier</div></div>' +
       '</div>' +
-      '<div class="inv-section">' +
-        '<div class="inv-title">INVOICE</div>' +
-        '<div class="inv-no">' + invoiceNo + '</div>' +
-        '<div class="inv-date">' + date + '</div>' +
-      '</div>' +
+      '<div><div class="inv-title">INVOICE</div><div class="inv-no">' + invoiceNo + '</div><div class="inv-date">' + date + '</div></div>' +
     '</div>' +
-    '<div class="bill-section">' +
-      '<div><div class="bill-label">Bill To</div><div class="bill-value">' + company + '</div><div class="bill-sub">' + area + '</div></div>' +
-      '<div><div class="bill-label">Customer ID</div><div class="bill-value">' + custId + '</div></div>' +
+    '<div class="bill">' +
+      '<div><div class="bl">Bill To</div><div class="bv">' + company + '</div><div class="bs">' + area + '</div></div>' +
+      '<div><div class="bl">Customer ID</div><div class="bv">' + custId + '</div></div>' +
     '</div>' +
-    '<table><thead><tr><th>#</th><th>Product</th><th>Qty</th><th>Unit Price</th><th>Amount</th></tr></thead>' +
+    '<table><thead><tr><th>#</th><th>Product</th><th class="r">Qty</th><th class="r">Unit Price</th><th class="r">Amount</th></tr></thead>' +
     '<tbody>' + itemRows + '</tbody></table>' +
-    '<div class="total-section"><div style="text-align:right;"><div class="total-label">Total Amount</div><div class="total-value">RM ' + orderTotal.toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2}) + '</div></div></div>' +
-    '<div class="footer">HPC Concrete &nbsp;|&nbsp; Thank you for your business</div>' +
-    '<script>window.onload=function(){window.print();}<\/script>' +
-    '</body></html>'
-  );
-  win.document.close();
+    '<div class="tot"><div style="text-align:right;"><div class="tl">Total Amount</div><div class="tv">RM ' + orderTotal + '</div></div></div>' +
+    '<div class="ftr">HPC Concrete &nbsp;|&nbsp; Thank you for your business</div>' +
+    '</body></html>';
+}
+
+function openPrintWindow(html) {
+  var blob = new Blob([html], { type: 'text/html' });
+  var url = URL.createObjectURL(blob);
+  var win = window.open(url, '_blank');
+  if (win) {
+    win.onload = function() {
+      setTimeout(function() { win.print(); }, 500);
+    };
+  } else {
+    // Fallback: use iframe
+    var iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    iframe.contentDocument.write(html);
+    iframe.contentDocument.close();
+    setTimeout(function() { iframe.contentWindow.print(); document.body.removeChild(iframe); }, 800);
+  }
 }
 
 var toastTimer;

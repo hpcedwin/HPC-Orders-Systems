@@ -404,37 +404,82 @@ function renderMonthlyChart(records){
   document.getElementById("monthlyChart").innerHTML=html;
 }
 
-function renderCustomerRank(records){
-  var custs={};
-  records.forEach(function(r){if(!custs[r.companyName])custs[r.companyName]={rev:0,qty:0};custs[r.companyName].rev+=Number(r.amount)||0;custs[r.companyName].qty+=Number(r.qty)||0;});
-  var sorted=Object.keys(custs).map(function(k){return{name:k,rev:custs[k].rev,qty:custs[k].qty};}).sort(function(a,b){return b.rev-a.rev;});
-  if(!sorted.length){document.getElementById("customerRank").innerHTML='<div class="empty-state">No data</div>';return;}
-  var maxRev=sorted[0].rev;
-  var html='<table class="rank-table"><thead><tr><th>#</th><th>Company</th><th></th><th style="text-align:right">Revenue (RM)</th><th style="text-align:right">Qty</th></tr></thead><tbody>';
-  sorted.slice(0,15).forEach(function(c,i){
-    var pct=maxRev>0?Math.round((c.rev/maxRev)*120):4;
-    var rankClass=i===0?"gold":i===1?"silver":i===2?"bronze":"";
-    html+='<tr><td class="rank-num '+rankClass+'">'+(i+1)+'</td><td>'+c.name+'</td><td><div class="bar-wrap"><div class="bar" style="width:'+pct+'px"></div></div></td><td class="rank-val">'+c.rev.toLocaleString("en-MY",{minimumFractionDigits:2})+'</td><td style="text-align:right;font-family:monospace;color:var(--text-muted)">'+c.qty+'</td></tr>';
+function renderCustomerRank(records) {
+  var custs = {};
+  records.forEach(function(r) {
+    var name = r.companyName || "";
+    if (!name) return;
+    if (!custs[name]) custs[name] = 0;
+    custs[name] += parseFloat(r.qty) || 0;
   });
-  html+='</tbody></table>';
-  document.getElementById("customerRank").innerHTML=html;
+  var sorted = Object.keys(custs).map(function(k) {
+    return { name: k, qty: custs[k] };
+  }).sort(function(a, b) { return b.qty - a.qty; });
+
+  if (!sorted.length) {
+    document.getElementById("customerRank").innerHTML = '<div class="empty-state">No data</div>';
+    return;
+  }
+
+  var maxQty = sorted[0].qty;
+  var html = '<table class="rank-table"><thead><tr>' +
+    '<th>#</th><th>Company</th><th></th><th style="text-align:right">Total Qty</th>' +
+    '</tr></thead><tbody>';
+
+  sorted.slice(0, 15).forEach(function(c, i) {
+    var pct = maxQty > 0 ? Math.round((c.qty / maxQty) * 120) : 4;
+    var rankClass = i === 0 ? "gold" : i === 1 ? "silver" : i === 2 ? "bronze" : "";
+    html += '<tr>' +
+      '<td class="rank-num ' + rankClass + '">' + (i + 1) + '</td>' +
+      '<td>' + c.name + '</td>' +
+      '<td><div class="bar-wrap"><div class="bar" style="width:' + pct + 'px"></div></div></td>' +
+      '<td class="rank-val">' + formatNum(c.qty, 0) + '</td>' +
+      '</tr>';
+  });
+
+  html += '</tbody></table>';
+  document.getElementById("customerRank").innerHTML = html;
 }
 
-function renderProductRank(records){
-  var prods={};
-  records.forEach(function(r){var k=r.itemCode+"||"+r.product;if(!prods[k])prods[k]={code:r.itemCode,name:r.product,rev:0,qty:0};prods[k].rev+=Number(r.amount)||0;prods[k].qty+=Number(r.qty)||0;});
-  var sorted=Object.keys(prods).map(function(k){return prods[k];}).sort(function(a,b){return b.qty-a.qty;});
-  if(!sorted.length){document.getElementById("productRank").innerHTML='<div class="empty-state">No data</div>';return;}
-  var maxQty=sorted[0].qty;
-  var html='<table class="rank-table"><thead><tr><th>#</th><th>Item Code</th><th>Product</th><th></th><th style="text-align:right">Qty Sold</th><th style="text-align:right">Revenue (RM)</th></tr></thead><tbody>';
-  sorted.slice(0,15).forEach(function(p,i){
-    var pct=maxQty>0?Math.round((p.qty/maxQty)*120):4;
-    var rankClass=i===0?"gold":i===1?"silver":i===2?"bronze":"";
-    html+='<tr><td class="rank-num '+rankClass+'">'+(i+1)+'</td><td style="font-family:monospace;font-size:12px;font-weight:600;color:var(--accent)">'+p.code+'</td><td>'+p.name+'</td><td><div class="bar-wrap"><div class="bar" style="width:'+pct+'px;background:var(--blue)"></div></div></td><td class="rank-val">'+p.qty+'</td><td style="text-align:right;font-family:monospace;color:var(--text-muted)">'+p.rev.toLocaleString("en-MY",{minimumFractionDigits:2})+'</td></tr>';
+
+function renderProductRank(records) {
+  var prods = {};
+  records.forEach(function(r) {
+    var name = (r.product || "").toString().trim();
+    if (!name) return;
+    if (!prods[name]) prods[name] = 0;
+    prods[name] += parseFloat(r.qty) || 0;
   });
-  html+='</tbody></table>';
-  document.getElementById("productRank").innerHTML=html;
+
+  var sorted = Object.keys(prods).map(function(k) {
+    return { name: k, qty: prods[k] };
+  }).sort(function(a, b) { return b.qty - a.qty; });
+
+  if (!sorted.length) {
+    document.getElementById("productRank").innerHTML = '<div class="empty-state">No data</div>';
+    return;
+  }
+
+  var maxQty = sorted[0].qty;
+  var html = '<table class="rank-table"><thead><tr>' +
+    '<th>#</th><th>Product</th><th></th><th style="text-align:right">Total Qty</th>' +
+    '</tr></thead><tbody>';
+
+  sorted.slice(0, 15).forEach(function(p, i) {
+    var pct = maxQty > 0 ? Math.round((p.qty / maxQty) * 120) : 4;
+    var rankClass = i === 0 ? "gold" : i === 1 ? "silver" : i === 2 ? "bronze" : "";
+    html += '<tr>' +
+      '<td class="rank-num ' + rankClass + '">' + (i + 1) + '</td>' +
+      '<td>' + p.name + '</td>' +
+      '<td><div class="bar-wrap"><div class="bar" style="width:' + pct + 'px;background:var(--blue)"></div></div></td>' +
+      '<td class="rank-val">' + formatNum(p.qty, 0) + '</td>' +
+      '</tr>';
+  });
+
+  html += '</tbody></table>';
+  document.getElementById("productRank").innerHTML = html;
 }
+
 
 function switchTab(name, el){
   document.querySelectorAll(".tab").forEach(function(t){t.classList.remove("active");});

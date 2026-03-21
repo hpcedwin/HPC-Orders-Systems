@@ -412,7 +412,7 @@ window.addEventListener("load", initLock);
 </form>
 
 <script>
-var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbya8lV2TGT6lpYtMYyPLOF33-b-rhJCfdg9shxbrUIRGFUkDCNEjgOM7lAG4YOJh9V-VA/exec";
+var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxtN1WOObSt8WGkzpGM9uRP8DxN3MR9_0uVAUbxXz2YQJ0Py5RATsjqssPlWLhqY8oS/exec";
 var editingInvoice = null;
 var lastOrder = null;
 
@@ -430,86 +430,44 @@ if (localStorage.getItem("hpc_dark") === "1") {
 }
 
 // ── Data ───────────────────────────────────────────────────
-var CUSTOMERS = {
-  "1":  { plant: "UCSB TELOK GONG",           area: "WEST" },
-  "2":  { plant: "UCSB PULAU INDAH",           area: "WEST" },
-  "3":  { plant: "UCSB KAPAR INDAH",           area: "WEST" },
-  "4":  { plant: "UCSB PUCHONG IOI",           area: "WEST" },
-  "5":  { plant: "UCSB ALAM IMPIAN",           area: "WEST" },
-  "6":  { plant: "UCSB SETIA ALAM",            area: "WEST" },
-  "7":  { plant: "UCSB JELEBU",                area: "WEST" },
-  "8":  { plant: "ISM COCHRANE",               area: "WEST" },
-  "9":  { plant: "ISM M.DAMANSARA",            area: "WEST" },
-  "10": { plant: "MDC PULAU INDAH",            area: "WEST" },
-  "11": { plant: "BINA-PILE PULAU INDAH",      area: "WEST" },
-  "12": { plant: "BINA-PILE HUTAN MELINTANG",  area: "WEST" },
-  "13": { plant: "YY MIX TECH VALLEY",         area: "WEST" },
-  "14": { plant: "PM SOH LUKUT",               area: "WEST" },
-  "15": { plant: "ECO MIX GELANG PATAH",       area: "WEST" },
-  "16": { plant: "ALVO ENGINEERING",           area: "WEST" },
-  "17": { plant: "CREC GUA MUSANG",            area: "WEST" },
-  "18": { plant: "FOJOHN ENTERPRISE",          area: "EAST" },
-  "19": { plant: "FJ CONCRETE BINTULU",        area: "EAST" },
-  "20": { plant: "BETON CHEMICALS TECHNOLOGY", area: "EAST" },
-  "21": { plant: "CMS CONCRETE",               area: "EAST" },
-  "22": { plant: "BUILDCON CONCRETE BRUNEI",   area: "EAST" },
-  "23": { plant: "JIN LONG JOHAN SETIA",       area: "WEST" },
-  "24": { plant: "PROTEXT AMPANG",             area: "WEST" }
-};
+// Customers and Products loaded dynamically from Google Sheets
+var CUSTOMERS = {};
+var PRODUCTS = {};
+var custItems = [];
+var prodItems = [];
 
-var PRODUCTS = {
-  "BP123":    { name: "CM 123",    price: 2.83 },
-  "CREC123":  { name: "CM 123",    price: 3.30 },
-  "ISM123":   { name: "CM 123",    price: 2.83 },
-  "123":      { name: "CM 123",    price: 2.00 },
-  "UW123":    { name: "CM 123",    price: 3.03 },
-  "VI123":    { name: "CM 123",    price: 3.10 },
-  "MDC123":   { name: "CM 123",    price: 2.80 },
-  "SB150":    { name: "CM 150",    price: 5.10 },
-  "YY150":    { name: "CM 150C",   price: 6.30 },
-  "150":      { name: "CM 150",    price: 3.09 },
-  "AV150":    { name: "CM 150C",   price: 6.85 },
-  "KK150C":   { name: "CM 150C",   price: 6.20 },
-  "BN150":    { name: "CM 150",    price: 5.60 },
-  "BTL150C":  { name: "CM 150C",   price: 6.35 },
-  "UW150":    { name: "CM 150C",   price: 6.50 },
-  "EM150":    { name: "CM 150C",   price: 6.30 },
-  "PT606":    { name: "CM 606",    price: 3.70 },
-  "CREC606":  { name: "CM 606",    price: 3.80 },
-  "SB626":    { name: "CM 626",    price: 5.40 },
-  "ISM626":   { name: "CM 626",    price: 5.14 },
-  "626":      { name: "CM 626",    price: 3.80 },
-  "BN656":    { name: "CM 656",    price: 4.10 },
-  "CH656":    { name: "CM 656",    price: 4.03 },
-  "ISM656":   { name: "CM 656",    price: 3.72 },
-  "656":      { name: "CM 656",    price: 2.75 },
-  "UW656":    { name: "CM 656",    price: 3.92 },
-  "KK656C":   { name: "CM 656C",   price: 7.50 },
-  "CMS656C":  { name: "CM 656C",   price: 8.10 },
-  "BTL656C":  { name: "CM 656C",   price: 7.30 },
-  "SB656C":   { name: "CM 656C",   price: 8.18 },
-  "BTL656R":  { name: "CM 656R",   price: 3.70 },
-  "CMS656RC": { name: "CM 656RC",  price: 8.10 },
-  "SB656RC":  { name: "CM 656RC",  price: 8.06 },
-  "PM720":    { name: "CM 720LK",  price: 3.92 },
-  "KK720":    { name: "CM 720P",   price: 5.15 },
-  "BTL720":   { name: "CM 720P",   price: 4.30 },
-  "SB720":    { name: "CM 720P",   price: 4.30 },
-  "JL720":    { name: "CM 720P",   price: 4.00 },
-  "720":      { name: "CM 720P",   price: 3.00 },
-  "CH727":    { name: "CM 727",    price: 3.93 },
-  "ISM727":   { name: "CM 727",    price: 3.40 },
-  "727":      { name: "CM 727",    price: 2.70 },
-  "KK730C":   { name: "CM 730C",   price: 7.40 },
-  "KK730B":   { name: "CM 730",    price: 7.50 },
-  "BN730":    { name: "CM 730",    price: 7.30 },
-  "SB730":    { name: "CM 730",    price: 7.30 },
-  "730":      { name: "CM 730",    price: 3.99 },
-  "KK730SR":  { name: "CM 730SR",  price: 8.20 },
-  "730SR":    { name: "CM 730SR",  price: 3.70 },
-  "DN01":     { name: "MIXER",     price: 0.00 },
-  "DN02":     { name: "PE TANK",   price: 0.00 }
-};
+function loadSheetData(callback) {
+  var cbName = "loadData" + Date.now();
+  var s = document.createElement("script");
+  window[cbName] = function(r) {
+    if (s.parentNode) s.parentNode.removeChild(s);
+    delete window[cbName];
+    if (r && r.success && r.contacts) {
+      r.contacts.forEach(function(c) {
+        CUSTOMERS[String(c.id)] = { plant: c.plant, company: c.company, area: c.area };
+      });
+    }
+    var cb2 = "loadProd" + Date.now();
+    var s2 = document.createElement("script");
+    window[cb2] = function(r2) {
+      if (s2.parentNode) s2.parentNode.removeChild(s2);
+      delete window[cb2];
+      if (r2 && r2.success && r2.products) {
+        r2.products.forEach(function(p) {
+          PRODUCTS[p.code] = { name: p.product, price: p.price };
+        });
+      }
+      if (callback) callback();
+    };
+    s2.onerror = function() { if (s2.parentNode) s2.parentNode.removeChild(s2); delete window[cb2]; if (callback) callback(); };
+    s2.src = SCRIPT_URL + "?action=getProducts&callback=" + cb2;
+    document.head.appendChild(s2);
+  };
+  s.onerror = function() { if (s.parentNode) s.parentNode.removeChild(s); delete window[cbName]; if (callback) callback(); };
+  s.src = SCRIPT_URL + "?action=getContacts&callback=" + cbName;
+  document.head.appendChild(s);
+}
+
 
 // ── Search Select ──────────────────────────────────────────
 function highlight(text, q) {
@@ -642,14 +600,10 @@ function makeSearchSelect(containerId, items, onSelect) {
   };
 }
 
-var custItems = Object.keys(CUSTOMERS).map(function(id) { return { value: id, label: id + " - " + CUSTOMERS[id].plant }; });
-var custSS = makeSearchSelect("ss-customer", custItems, function(id) {
-  if (!id || !CUSTOMERS[id]) { document.getElementById("companyName").value = ""; document.getElementById("area").value = ""; return; }
-  document.getElementById("companyName").value = CUSTOMERS[id].plant;
-  document.getElementById("area").value = CUSTOMERS[id].area;
-});
+var custItems = [];
+var custSS = makeSearchSelect("ss-customer", [], function() {});
 
-var prodItems = Object.keys(PRODUCTS).map(function(code) { return { value: code, label: code + " - " + PRODUCTS[code].name }; });
+var prodItems = [];
 
 // ── Items ──────────────────────────────────────────────────
 var itemId = 0, itemSSMap = {};
@@ -795,7 +749,34 @@ window.onload = function() {
   document.getElementById("orderDate").value = d.toISOString().split("T")[0];
   document.getElementById("invoiceNo").value = genInvoice();
   document.getElementById("todayDate").textContent = d.toLocaleDateString("en-MY", { weekday: "short", year: "numeric", month: "short", day: "numeric" });
-  addItem();
+
+  // Show loading state
+  document.getElementById("companyName").placeholder = "Loading data...";
+
+  loadSheetData(function() {
+    // Rebuild customer and product search selects after data loads
+    document.getElementById("companyName").placeholder = "Auto-filled from Customer ID";
+    custItems = Object.keys(CUSTOMERS).map(function(id) {
+      return { value: id, label: id + " - " + CUSTOMERS[id].plant };
+    });
+    custSS = makeSearchSelect("ss-customer", custItems, function(id) {
+      if (!id || !CUSTOMERS[id]) {
+        document.getElementById("companyName").value = "";
+        document.getElementById("area").value = "";
+        return;
+      }
+      document.getElementById("companyName").value = CUSTOMERS[id].plant;
+      document.getElementById("area").value = CUSTOMERS[id].area;
+    });
+    prodItems = Object.keys(PRODUCTS).map(function(code) {
+      return { value: code, label: code + " - " + PRODUCTS[code].name };
+    });
+    // Re-init first item row with new product data
+    document.getElementById("itemsContainer").innerHTML = "";
+    itemId = 0; itemSSMap = {};
+    addItem();
+    calcTotal();
+  });
 };
 
 function iframeLoaded() {

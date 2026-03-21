@@ -203,9 +203,10 @@
     <div class="card-header"><h3>Analytics</h3></div>
     <div class="card-body">
       <div class="tab-bar">
-        <div class="tab active" onclick="switchTab('monthly')">Monthly Sales</div>
-        <div class="tab" onclick="switchTab('customers')">Customer Ranking</div>
-        <div class="tab" onclick="switchTab('products')">Product Ranking</div>
+        <div class="tab active" onclick="switchTab('monthly', this)">Monthly Sales</div>
+        <div class="tab" onclick="switchTab('customers', this)">Customer Ranking</div>
+        <div class="tab" onclick="switchTab('products', this)">Product Ranking</div>
+        <div class="tab" onclick="switchTab('usage', this)">📊 Usage Report</div>
       </div>
 
       <div class="tab-panel active" id="tab-monthly">
@@ -216,6 +217,9 @@
       </div>
       <div class="tab-panel" id="tab-products">
         <div id="productRank"><div class="empty-state"><div class="icon">📦</div>Load data to view product ranking</div></div>
+      </div>
+      <div class="tab-panel" id="tab-usage">
+        <div id="usageReport"><div class="empty-state"><div class="icon">📊</div>Load data to view usage report</div></div>
       </div>
     </div>
   </div>
@@ -235,7 +239,7 @@
 <div class="toast" id="toast"><span id="toastMsg"></span></div>
 
 <script>
-var SCRIPT_URL="https://script.google.com/macros/s/AKfycbya8lV2TGT6lpYtMYyPLOF33-b-rhJCfdg9shxbrUIRGFUkDCNEjgOM7lAG4YOJh9V-VA/exec";
+var SCRIPT_URL="https://script.google.com/macros/s/AKfycbxtN1WOObSt8WGkzpGM9uRP8DxN3MR9_0uVAUbxXz2YQJ0Py5RATsjqssPlWLhqY8oS/exec";
 var allRecords=[],filteredRecords=[];
 
 function jsonp(url,cb){
@@ -336,10 +340,13 @@ function renderTable(records){
   document.getElementById("recordsContainer").innerHTML=html;
 }
 
+function formatNum(n, decimals) { return Number(n).toLocaleString("en-MY", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }); }
+
 function renderAnalytics(records){
   renderMonthlyChart(records);
   renderCustomerRank(records);
   renderProductRank(records);
+  if (document.getElementById('tab-usage').classList.contains('active')) renderUsageReport(records);
 }
 
 function renderMonthlyChart(records){
@@ -402,11 +409,93 @@ function renderProductRank(records){
   document.getElementById("productRank").innerHTML=html;
 }
 
-function switchTab(name){
+function switchTab(name, el){
   document.querySelectorAll(".tab").forEach(function(t){t.classList.remove("active");});
   document.querySelectorAll(".tab-panel").forEach(function(p){p.classList.remove("active");});
-  event.target.classList.add("active");
+  if (el) el.classList.add("active");
   document.getElementById("tab-"+name).classList.add("active");
+  if (name === "usage" && allRecords.length) renderUsageReport(allRecords);
+}
+
+function renderUsageReport(records) {
+  var months = ["01","02","03","04","05","06","07","08","09","10","11","12"];
+  var monthNames = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+
+  // Get years from records
+  var years = {};
+  records.forEach(function(r) {
+    var dateStr = r.date ? r.date.toString() : "";
+    var yr = dateStr.substring(0, 4);
+    if (yr && /^\d{4}$/.test(yr)) years[yr] = true;
+  });
+  var yearList = Object.keys(years).sort();
+  var currYear = yearList[yearList.length - 1] || new Date().getFullYear().toString();
+  var prevYear = (parseInt(currYear) - 1).toString();
+
+  // Aggregate by year/month/area
+  var data = {};
+  records.forEach(function(r) {
+    var dateStr = r.date ? r.date.toString() : "";
+    var yr  = dateStr.substring(0, 4);
+    var mo  = dateStr.substring(5, 7);
+    var area = (r.area || "").toString().toUpperCase();
+    var qty = parseFloat(r.qty) || 0;
+    if (!yr || !mo) return;
+    if (!data[yr]) data[yr] = {};
+    if (!data[yr][mo]) data[yr][mo] = { total: 0, west: 0, east: 0 };
+    data[yr][mo].total += qty;
+    if (area === "WEST") data[yr][mo].west += qty;
+    if (area === "EAST") data[yr][mo].east += qty;
+  });
+
+  function getVal(yr, mo, key) {
+    return (data[yr] && data[yr][mo]) ? (data[yr][mo][key] || 0) : 0;
+  }
+
+  function buildTable(title, key) {
+    var curr_total = 0, prev_total = 0;
+    var rows = months.map(function(mo, i) {
+      var curr = getVal(currYear, mo, key);
+      var prev = getVal(prevYear, mo, key);
+      var diff = curr - prev;
+      curr_total += curr; prev_total += prev;
+      return '<tr>' +
+        '<td style="font-weight:600">' + monthNames[i] + '</td>' +
+        '<td style="text-align:right;font-family:monospace">' + formatNum(curr, 0) + '</td>' +
+        '<td style="text-align:right;font-family:monospace;color:var(--text-muted)">' + formatNum(prev, 0) + '</td>' +
+        '<td style="text-align:right;font-family:monospace;color:' + (diff >= 0 ? 'var(--success)' : 'var(--danger)') + '">' +
+          (diff >= 0 ? '+' : '') + formatNum(diff, 0) + '</td>' +
+        '</tr>';
+    }).join("");
+    var totalDiff = curr_total - prev_total;
+    return '<div style="margin-bottom:24px">' +
+      '<div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:10px;padding:8px 12px;background:var(--surface2);border-radius:6px;">' + title + '</div>' +
+      '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:320px">' +
+      '<thead><tr>' +
+        '<th style="font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;padding:0 10px 8px;text-align:left;border-bottom:2px solid var(--border)">Month</th>' +
+        '<th style="font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;padding:0 10px 8px;text-align:right;border-bottom:2px solid var(--border)">' + currYear + '</th>' +
+        '<th style="font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;padding:0 10px 8px;text-align:right;border-bottom:2px solid var(--border)">' + prevYear + '</th>' +
+        '<th style="font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;padding:0 10px 8px;text-align:right;border-bottom:2px solid var(--border)">+/-</th>' +
+      '</tr></thead>' +
+      '<tbody style="font-size:13px">' + rows + '</tbody>' +
+      '<tfoot><tr style="border-top:2px solid var(--border);font-weight:700">' +
+        '<td style="padding:8px 10px">TOTAL</td>' +
+        '<td style="text-align:right;font-family:monospace;padding:8px 10px">' + formatNum(curr_total, 0) + '</td>' +
+        '<td style="text-align:right;font-family:monospace;padding:8px 10px;color:var(--muted)">' + formatNum(prev_total, 0) + '</td>' +
+        '<td style="text-align:right;font-family:monospace;padding:8px 10px;color:' + (totalDiff >= 0 ? 'var(--success)' : 'var(--danger)') + '">' +
+          (totalDiff >= 0 ? '+' : '') + formatNum(totalDiff, 0) + '</td>' +
+      '</tr></tfoot>' +
+      '</table></div></div>';
+  }
+
+  var html =
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">' +
+    buildTable('West &amp; East Combined', 'total') +
+    buildTable('West Only', 'west') +
+    buildTable('East Only', 'east') +
+    '</div>';
+
+  document.getElementById("usageReport").innerHTML = html;
 }
 
 var toastTimer;

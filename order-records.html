@@ -418,84 +418,102 @@ function switchTab(name, el){
 }
 
 function renderUsageReport(records) {
-  var months = ["01","02","03","04","05","06","07","08","09","10","11","12"];
   var monthNames = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
-
-  // Get years from records
-  var years = {};
-  records.forEach(function(r) {
-    var dateStr = r.date ? r.date.toString() : "";
-    var yr = dateStr.substring(0, 4);
-    if (yr && /^\d{4}$/.test(yr)) years[yr] = true;
-  });
-  var yearList = Object.keys(years).sort();
-  var currYear = yearList[yearList.length - 1] || new Date().getFullYear().toString();
+  var currYear = new Date().getFullYear().toString();
   var prevYear = (parseInt(currYear) - 1).toString();
 
-  // Aggregate by year/month/area
-  var data = {};
+  // Calculate current year from order records
+  var curr = { combined: {}, west: {}, east: {} };
   records.forEach(function(r) {
     var dateStr = r.date ? r.date.toString() : "";
-    var yr  = dateStr.substring(0, 4);
-    var mo  = dateStr.substring(5, 7);
+    var yr = "", mo = "";
+    if (r.date && typeof r.date === 'object') {
+      var d = new Date(r.date);
+      yr = d.getFullYear().toString();
+      mo = ("0" + (d.getMonth() + 1)).slice(-2);
+    } else if (dateStr.indexOf("-") > -1) {
+      var p = dateStr.split("-");
+      yr = p[0]; mo = ("0" + p[1]).slice(-2);
+    }
+    if (yr !== currYear || !mo) return;
+    var qty  = parseFloat(r.qty) || 0;
     var area = (r.area || "").toString().toUpperCase();
-    var qty = parseFloat(r.qty) || 0;
-    if (!yr || !mo) return;
-    if (!data[yr]) data[yr] = {};
-    if (!data[yr][mo]) data[yr][mo] = { total: 0, west: 0, east: 0 };
-    data[yr][mo].total += qty;
-    if (area === "WEST") data[yr][mo].west += qty;
-    if (area === "EAST") data[yr][mo].east += qty;
+    curr.combined[mo] = (curr.combined[mo] || 0) + qty;
+    if (area === "WEST") curr.west[mo] = (curr.west[mo] || 0) + qty;
+    if (area === "EAST") curr.east[mo] = (curr.east[mo] || 0) + qty;
   });
 
-  function getVal(yr, mo, key) {
-    return (data[yr] && data[yr][mo]) ? (data[yr][mo][key] || 0) : 0;
-  }
+  // Load previous year from Monthly Usage sheet
+  var cbName = "usage" + Date.now();
+  var s = document.createElement("script");
+  window[cbName] = function(r) {
+    if (s.parentNode) s.parentNode.removeChild(s);
+    delete window[cbName];
 
-  function buildTable(title, key) {
-    var curr_total = 0, prev_total = 0;
-    var rows = months.map(function(mo, i) {
-      var curr = getVal(currYear, mo, key);
-      var prev = getVal(prevYear, mo, key);
-      var diff = curr - prev;
-      curr_total += curr; prev_total += prev;
-      return '<tr>' +
-        '<td style="font-weight:600">' + monthNames[i] + '</td>' +
-        '<td style="text-align:right;font-family:monospace">' + formatNum(curr, 0) + '</td>' +
-        '<td style="text-align:right;font-family:monospace;color:var(--text-muted)">' + formatNum(prev, 0) + '</td>' +
-        '<td style="text-align:right;font-family:monospace;color:' + (diff >= 0 ? 'var(--success)' : 'var(--danger)') + '">' +
-          (diff >= 0 ? '+' : '') + formatNum(diff, 0) + '</td>' +
-        '</tr>';
-    }).join("");
-    var totalDiff = curr_total - prev_total;
-    return '<div style="margin-bottom:24px">' +
-      '<div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:10px;padding:8px 12px;background:var(--surface2);border-radius:6px;">' + title + '</div>' +
-      '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:320px">' +
-      '<thead><tr>' +
-        '<th style="font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;padding:0 10px 8px;text-align:left;border-bottom:2px solid var(--border)">Month</th>' +
-        '<th style="font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;padding:0 10px 8px;text-align:right;border-bottom:2px solid var(--border)">' + currYear + '</th>' +
-        '<th style="font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;padding:0 10px 8px;text-align:right;border-bottom:2px solid var(--border)">' + prevYear + '</th>' +
-        '<th style="font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;padding:0 10px 8px;text-align:right;border-bottom:2px solid var(--border)">+/-</th>' +
-      '</tr></thead>' +
-      '<tbody style="font-size:13px">' + rows + '</tbody>' +
-      '<tfoot><tr style="border-top:2px solid var(--border);font-weight:700">' +
-        '<td style="padding:8px 10px">TOTAL</td>' +
-        '<td style="text-align:right;font-family:monospace;padding:8px 10px">' + formatNum(curr_total, 0) + '</td>' +
-        '<td style="text-align:right;font-family:monospace;padding:8px 10px;color:var(--muted)">' + formatNum(prev_total, 0) + '</td>' +
-        '<td style="text-align:right;font-family:monospace;padding:8px 10px;color:' + (totalDiff >= 0 ? 'var(--success)' : 'var(--danger)') + '">' +
-          (totalDiff >= 0 ? '+' : '') + formatNum(totalDiff, 0) + '</td>' +
-      '</tr></tfoot>' +
-      '</table></div></div>';
-  }
+    var prev = { combined: {}, west: {}, east: {} };
+    if (r && r.success && r.usage) {
+      var u = r.usage;
+      if (u.combined) u.combined.forEach(function(row) { prev.combined[monthNames.indexOf(row.month) + 1] = row.prev; });
+      if (u.west)     u.west.forEach(function(row)     { prev.west[monthNames.indexOf(row.month) + 1]     = row.prev; });
+      if (u.east)     u.east.forEach(function(row)     { prev.east[monthNames.indexOf(row.month) + 1]     = row.prev; });
+    }
 
-  var html =
-    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">' +
-    buildTable('West &amp; East Combined', 'total') +
-    buildTable('West Only', 'west') +
-    buildTable('East Only', 'east') +
-    '</div>';
+    function buildTable(title, currData, prevData) {
+      var currTotal = 0, prevTotal = 0;
+      var rows = monthNames.map(function(name, i) {
+        var mo = ("0" + (i + 1)).slice(-2);
+        var moNum = i + 1;
+        var c = parseFloat(currData[mo]) || 0;
+        var p = parseFloat(prevData[moNum]) || 0;
+        var diff = c - p;
+        currTotal += c; prevTotal += p;
+        return '<tr style="border-bottom:1px solid var(--border)">' +
+          '<td style="padding:8px 10px;font-weight:600">' + name + '</td>' +
+          '<td style="padding:8px 10px;text-align:right;font-family:monospace">' + (c ? formatNum(c, 0) : '-') + '</td>' +
+          '<td style="padding:8px 10px;text-align:right;font-family:monospace;color:var(--muted)">' + (p ? formatNum(p, 0) : '-') + '</td>' +
+          '<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:600;color:' + (diff > 0 ? 'var(--success)' : diff < 0 ? 'var(--danger)' : 'var(--muted)') + '">' +
+            (c || p ? (diff > 0 ? '+' : '') + formatNum(diff, 0) : '-') + '</td>' +
+          '</tr>';
+      }).join('');
+      var totalDiff = currTotal - prevTotal;
+      return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:0">' +
+        '<div style="padding:12px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:13px;font-weight:700;color:var(--navy)">' + title + '</div>' +
+        '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:280px">' +
+        '<thead><tr style="border-bottom:2px solid var(--border)">' +
+          '<th style="padding:8px 10px;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;text-align:left">Month</th>' +
+          '<th style="padding:8px 10px;font-size:10.5px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;text-align:right">' + currYear + '</th>' +
+          '<th style="padding:8px 10px;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;text-align:right">' + prevYear + '</th>' +
+          '<th style="padding:8px 10px;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;text-align:right">+/-</th>' +
+        '</tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+        '<tfoot><tr style="border-top:2px solid var(--border);background:var(--surface2)">' +
+          '<td style="padding:8px 10px;font-weight:700">TOTAL</td>' +
+          '<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:700;color:var(--accent)">' + formatNum(currTotal, 0) + '</td>' +
+          '<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:700;color:var(--muted)">' + formatNum(prevTotal, 0) + '</td>' +
+          '<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:700;color:' + (totalDiff > 0 ? 'var(--success)' : totalDiff < 0 ? 'var(--danger)' : 'var(--muted)') + '">' +
+            (totalDiff > 0 ? '+' : '') + formatNum(totalDiff, 0) + '</td>' +
+        '</tr></tfoot>' +
+        '</table></div></div>';
+    }
 
-  document.getElementById("usageReport").innerHTML = html;
+    var html = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">' +
+      buildTable('West &amp; East Combined', curr.combined, prev.combined) +
+      buildTable('West Only', curr.west, prev.west) +
+      buildTable('East Only', curr.east, prev.east) +
+      '</div>';
+
+    document.getElementById("usageReport").innerHTML = html;
+  };
+
+  s.onerror = function() {
+    if (s.parentNode) s.parentNode.removeChild(s);
+    delete window[cbName];
+    document.getElementById("usageReport").innerHTML = '<div class="empty-state"><div class="icon">⚠️</div>Failed to load usage data</div>';
+  };
+
+  document.getElementById("usageReport").innerHTML = '<div class="loading-state">⏳ Loading usage data...</div>';
+  s.src = SCRIPT_URL + "?action=getMonthlyUsage&callback=" + cbName;
+  document.head.appendChild(s);
 }
 
 var toastTimer;

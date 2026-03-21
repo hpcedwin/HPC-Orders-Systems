@@ -328,8 +328,8 @@ window.addEventListener("load", initLock);
           <input type="date" id="orderDate" />
         </div>
         <div class="form-group">
-          <label>Invoice No. <span class="req">*</span></label>
-          <input type="text" id="invoiceNo" placeholder="Auto-filled when customer selected" />
+          <label>Invoice No.</label>
+          <input type="text" id="invoiceNo" placeholder="Auto-filled when customer selected" readonly style="background:var(--accent-light);border-color:var(--accent-bdr);color:var(--accent-dark);font-weight:600;" />
         </div>
         <div class="form-group">
           <label>Customer ID <span class="req">*</span></label>
@@ -449,33 +449,23 @@ function jsonpCall(url, cb) {
 }
 
 function loadSheetData(callback) {
-  // Step 1: Load contacts
-  jsonpCall(SCRIPT_URL + "?action=getContacts", function(r) {
-    if (r && r.success && r.contacts) {
-      r.contacts.forEach(function(c) {
-        CUSTOMERS[String(c.id)] = { plant: c.plant, company: c.company, area: c.area };
-      });
-    }
-    // Step 2: Load products
-    jsonpCall(SCRIPT_URL + "?action=getProducts", function(r2) {
-      if (r2 && r2.success && r2.products) {
-        r2.products.forEach(function(p) {
+  // Single request to load all data at once
+  jsonpCall(SCRIPT_URL + "?action=getInitData", function(r) {
+    if (r && r.success) {
+      if (r.contacts) {
+        r.contacts.forEach(function(c) {
+          CUSTOMERS[String(c.id)] = { plant: c.plant, company: c.company, area: c.area };
+        });
+      }
+      if (r.products) {
+        r.products.forEach(function(p) {
           PRODUCTS[p.code] = { name: p.product, price: p.price };
         });
       }
-      // Step 3: Load next invoice numbers
-      jsonpCall(SCRIPT_URL + "?action=getNextInvoice&area=WEST", function(r3) {
-        if (r3 && r3.success && r3.invoice) {
-          NEXT_INVOICE.WEST = r3.invoice;
-        }
-        jsonpCall(SCRIPT_URL + "?action=getNextInvoice&area=EAST", function(r4) {
-          if (r4 && r4.success && r4.invoice) {
-            NEXT_INVOICE.EAST = r4.invoice;
-          }
-          if (callback) callback();
-        });
-      });
-    });
+      if (r.invoiceWest) NEXT_INVOICE.WEST = r.invoiceWest;
+      if (r.invoiceEast) NEXT_INVOICE.EAST = r.invoiceEast;
+    }
+    if (callback) callback();
   });
 }
 
@@ -759,7 +749,7 @@ window.onload = function() {
   var d = new Date();
   document.getElementById("orderDate").value = d.toISOString().split("T")[0];
   document.getElementById("invoiceNo").value = "";
-  document.getElementById("todayDate").textContent = d.toLocaleDateString("en-MY", { weekday: "short", year: "numeric", month: "short", day: "numeric" });
+  document.getElementById("todayDate").textContent = d.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
 
   // Show loading state
   document.getElementById("companyName").placeholder = "Loading data...";

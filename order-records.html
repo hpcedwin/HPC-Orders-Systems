@@ -334,7 +334,7 @@ function renderTable(records){
   if(!records.length){document.getElementById("recordsContainer").innerHTML='<div class="empty-state"><div class="icon">🔍</div>No records match your filters</div>';return;}
   var html='<table class="records-table"><thead><tr><th>Date</th><th>Invoice</th><th>ID</th><th>Company</th><th>Item Code</th><th>Product</th><th>Qty</th><th>Unit Price</th><th>Amount</th><th>Area</th></tr></thead><tbody>';
   records.forEach(function(r){
-    html+='<tr><td>'+r.date+'</td><td class="inv">'+r.invoiceNo+'</td><td style="color:var(--text-muted)">'+r.customerId+'</td><td>'+r.companyName+'</td><td style="font-family:monospace;font-size:12px">'+r.itemCode+'</td><td>'+r.product+'</td><td class="amt">'+r.qty+'</td><td class="amt">RM '+Number(r.unitPrice).toFixed(2)+'</td><td class="amt">RM '+Number(r.amount).toFixed(2)+'</td><td><span class="badge-area '+String(r.area||"").toLowerCase()+'">'+r.area+'</span></td></tr>';
+    html+='<tr><td>'+String(r.date||'').substring(0,10)+'</td><td class="inv">'+r.invoiceNo+'</td><td style="color:var(--text-muted)">'+r.customerId+'</td><td>'+r.companyName+'</td><td style="font-family:monospace;font-size:12px">'+r.itemCode+'</td><td>'+r.product+'</td><td class="amt">'+r.qty+'</td><td class="amt">RM '+Number(r.unitPrice).toFixed(2)+'</td><td class="amt">RM '+Number(r.amount).toFixed(2)+'</td><td><span class="badge-area '+String(r.area||"").toLowerCase()+'">'+r.area+'</span></td></tr>';
   });
   html+='</tbody></table>';
   document.getElementById("recordsContainer").innerHTML=html;

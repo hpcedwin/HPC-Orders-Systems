@@ -329,7 +329,7 @@ window.addEventListener("load", initLock);
         </div>
         <div class="form-group">
           <label>Invoice No. <span class="req">*</span></label>
-          <input type="text" id="invoiceNo" placeholder="INV-20260319-001" />
+          <input type="text" id="invoiceNo" placeholder="Auto-filled when customer selected" />
         </div>
         <div class="form-group">
           <label>Customer ID <span class="req">*</span></label>
@@ -436,36 +436,47 @@ var PRODUCTS = {};
 var custItems = [];
 var prodItems = [];
 
-function loadSheetData(callback) {
-  var cbName = "loadData" + Date.now();
+// Next invoice numbers per area
+var NEXT_INVOICE = { WEST: "20260037", EAST: "2026004" };
+
+function jsonpCall(url, cb) {
+  var name = "cb" + Date.now() + Math.floor(Math.random()*1000);
   var s = document.createElement("script");
-  window[cbName] = function(r) {
-    if (s.parentNode) s.parentNode.removeChild(s);
-    delete window[cbName];
+  window[name] = function(r) { if (s.parentNode) s.parentNode.removeChild(s); delete window[name]; cb(r); };
+  s.onerror = function() { if (s.parentNode) s.parentNode.removeChild(s); delete window[name]; cb(null); };
+  s.src = url + (url.indexOf("?") >= 0 ? "&" : "?") + "callback=" + name;
+  document.head.appendChild(s);
+}
+
+function loadSheetData(callback) {
+  // Step 1: Load contacts
+  jsonpCall(SCRIPT_URL + "?action=getContacts", function(r) {
     if (r && r.success && r.contacts) {
       r.contacts.forEach(function(c) {
         CUSTOMERS[String(c.id)] = { plant: c.plant, company: c.company, area: c.area };
       });
     }
-    var cb2 = "loadProd" + Date.now();
-    var s2 = document.createElement("script");
-    window[cb2] = function(r2) {
-      if (s2.parentNode) s2.parentNode.removeChild(s2);
-      delete window[cb2];
+    // Step 2: Load products
+    jsonpCall(SCRIPT_URL + "?action=getProducts", function(r2) {
       if (r2 && r2.success && r2.products) {
         r2.products.forEach(function(p) {
           PRODUCTS[p.code] = { name: p.product, price: p.price };
         });
       }
-      if (callback) callback();
-    };
-    s2.onerror = function() { if (s2.parentNode) s2.parentNode.removeChild(s2); delete window[cb2]; if (callback) callback(); };
-    s2.src = SCRIPT_URL + "?action=getProducts&callback=" + cb2;
-    document.head.appendChild(s2);
-  };
-  s.onerror = function() { if (s.parentNode) s.parentNode.removeChild(s); delete window[cbName]; if (callback) callback(); };
-  s.src = SCRIPT_URL + "?action=getContacts&callback=" + cbName;
-  document.head.appendChild(s);
+      // Step 3: Load next invoice numbers
+      jsonpCall(SCRIPT_URL + "?action=getNextInvoice&area=WEST", function(r3) {
+        if (r3 && r3.success && r3.invoice) {
+          NEXT_INVOICE.WEST = r3.invoice;
+        }
+        jsonpCall(SCRIPT_URL + "?action=getNextInvoice&area=EAST", function(r4) {
+          if (r4 && r4.success && r4.invoice) {
+            NEXT_INVOICE.EAST = r4.invoice;
+          }
+          if (callback) callback();
+        });
+      });
+    });
+  });
 }
 
 
@@ -747,7 +758,7 @@ var isFirstLoad = true, pendingOrder = null;
 window.onload = function() {
   var d = new Date();
   document.getElementById("orderDate").value = d.toISOString().split("T")[0];
-  document.getElementById("invoiceNo").value = genInvoice();
+  document.getElementById("invoiceNo").value = "";
   document.getElementById("todayDate").textContent = d.toLocaleDateString("en-MY", { weekday: "short", year: "numeric", month: "short", day: "numeric" });
 
   // Show loading state
@@ -766,7 +777,11 @@ window.onload = function() {
         return;
       }
       document.getElementById("companyName").value = CUSTOMERS[id].plant;
-      document.getElementById("area").value = CUSTOMERS[id].area;
+      var area = CUSTOMERS[id].area;
+      document.getElementById("area").value = area;
+      // Auto-fill invoice number based on area
+      var inv = NEXT_INVOICE[area] || NEXT_INVOICE.WEST;
+      document.getElementById("invoiceNo").value = inv;
     });
     prodItems = Object.keys(PRODUCTS).map(function(code) {
       return { value: code, label: code + " - " + PRODUCTS[code].name };
@@ -791,7 +806,7 @@ function iframeLoaded() {
   clearForm();
 }
 
-function genInvoice() { var d = new Date(); return "INV-" + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + "-" + (Math.floor(Math.random() * 900) + 100); }
+function genInvoice() { return ""; }
 function pad(n) { return n < 10 ? "0" + n : "" + n; }
 
 function submitOrder() {
@@ -807,6 +822,13 @@ function submitOrder() {
   var payload = { rows: allItems.map(function(item) { return { date: date, invoiceNo: invoiceNo, customerId: custId, itemCode: item.itemCode, qty: item.qty, companyName: company, product: item.product, unitPrice: item.unitPrice, lineTotal: item.lineTotal, area: area }; }) };
   if (editingInvoice) payload.deleteInvoice = editingInvoice;
   lastOrder = { custId: custId, items: allItems.map(function(i) { return { itemCode: i.itemCode, unitPrice: i.unitPrice, qty: i.qty }; }) };
+  // Pre-increment local invoice counter for next order
+  var currentArea = area.toUpperCase();
+  if (NEXT_INVOICE[currentArea]) {
+    var num = parseInt(NEXT_INVOICE[currentArea].replace(/\D/g, "")) || 0;
+    var newNum = (num + 1).toString();
+    NEXT_INVOICE[currentArea] = newNum;
+  }
   pendingOrder = { invoiceNo: invoiceNo, company: company, area: area, orderTotal: orderTotal };
   setLoading(true);
   document.getElementById("hidden_data").value = JSON.stringify(payload);
@@ -835,7 +857,7 @@ function addHistory(o, ok) {
 
 function clearForm() {
   document.getElementById("orderDate").value = new Date().toISOString().split("T")[0];
-  document.getElementById("invoiceNo").value = genInvoice();
+  document.getElementById("invoiceNo").value = "";
   custSS.reset(); document.getElementById("companyName").value = ""; document.getElementById("area").value = "";
   document.getElementById("itemsContainer").innerHTML = ""; itemId = 0; itemSSMap = {};
   addItem(); calcTotal();

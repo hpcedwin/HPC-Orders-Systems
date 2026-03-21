@@ -488,18 +488,22 @@ function renderUsageReport(records) {
     var prev = { combined: {}, west: {}, east: {} };
     if (r && r.success && r.usage) {
       var u = r.usage;
+      console.log("Usage data received:", JSON.stringify(u));
       if (u.combined) u.combined.forEach(function(row) {
         var i = monthNames.indexOf(row.month);
-        if (i >= 0) prev.combined[("0"+(i+1)).slice(-2)] = row.prev;
+        if (i >= 0) prev.combined[("0"+(i+1)).slice(-2)] = parseFloat(row.prev) || 0;
       });
       if (u.west) u.west.forEach(function(row) {
         var i = monthNames.indexOf(row.month);
-        if (i >= 0) prev.west[("0"+(i+1)).slice(-2)] = row.prev;
+        if (i >= 0) prev.west[("0"+(i+1)).slice(-2)] = parseFloat(row.west_prev !== undefined ? row.west_prev : row.prev) || 0;
       });
       if (u.east) u.east.forEach(function(row) {
         var i = monthNames.indexOf(row.month);
-        if (i >= 0) prev.east[("0"+(i+1)).slice(-2)] = row.prev;
+        if (i >= 0) prev.east[("0"+(i+1)).slice(-2)] = parseFloat(row.east_prev !== undefined ? row.east_prev : row.prev) || 0;
       });
+      console.log("prev combined:", JSON.stringify(prev.combined));
+      console.log("prev west:", JSON.stringify(prev.west));
+      console.log("prev east:", JSON.stringify(prev.east));
     }
 
     var prevYear = (parseInt(currYear) - 1).toString();
@@ -507,18 +511,22 @@ function renderUsageReport(records) {
     function buildChart(currData, prevData) {
       var vals = monthNames.map(function(n, i) {
         var mo = ("0"+(i+1)).slice(-2);
-        return { c: parseFloat(currData[mo]) || 0, p: parseFloat(prevData[mo]) || 0 };
+        var c = parseFloat(currData[mo]) || 0;
+        var p = parseFloat(prevData[mo]) || 0;
+        return { c: c, p: p };
       });
+
       var maxVal = Math.max.apply(null, vals.map(function(v) { return Math.max(v.c, v.p); })) || 1;
       var hasCurr = vals.some(function(v) { return v.c > 0; });
+      var hasPrev = vals.some(function(v) { return v.p > 0; });
 
       var cols = vals.map(function(v, i) {
         var hc = v.c > 0 ? Math.max(4, Math.round((v.c / maxVal) * 100)) : 0;
         var hp = v.p > 0 ? Math.max(4, Math.round((v.p / maxVal) * 100)) : 0;
         return '<div class="chart-col">' +
           '<div class="chart-col-bars">' +
-          (hasCurr ? '<div class="bar-curr" style="height:' + hc + 'px;width:10px;" title="' + currYear + ': ' + formatNum(v.c,0) + '"></div>' : '') +
-          '<div class="bar-prev" style="height:' + hp + 'px;width:10px;" title="' + prevYear + ': ' + formatNum(v.p,0) + '"></div>' +
+          (hasCurr ? '<div class="bar-curr" style="height:' + hc + 'px;width:10px;flex-shrink:0;" title="' + currYear + ': ' + formatNum(v.c,0) + '"></div>' : '') +
+          (hasPrev ? '<div class="bar-prev" style="height:' + hp + 'px;width:10px;flex-shrink:0;" title="' + prevYear + ': ' + formatNum(v.p,0) + '"></div>' : '') +
           '</div>' +
           '<div class="chart-label">' + monthNames[i] + '</div>' +
           '</div>';
@@ -528,7 +536,7 @@ function renderUsageReport(records) {
         '<div class="chart-bars">' + cols + '</div>' +
         '<div class="chart-legend">' +
         (hasCurr ? '<span><span class="legend-dot" style="background:var(--accent)"></span>' + currYear + '</span>' : '') +
-        '<span><span class="legend-dot" style="background:var(--muted);opacity:.5"></span>' + prevYear + '</span>' +
+        (hasPrev ? '<span><span class="legend-dot" style="background:#9aa3b5;opacity:.8"></span>' + prevYear + '</span>' : '') +
         '</div></div>';
     }
 
